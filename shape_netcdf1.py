@@ -20,17 +20,17 @@ loc = loc[1:-1].split(",")
 shapefile = sys.argv[3]
 date_start = sys.argv[4]
 date_end = sys.argv[5]
-file_type = sys.argv[6]
-dataset = sys.argv[7]
-outfile = sys.argv[8]
-compression = sys.argv[9]
-timestepAlt = sys.argv[10]
+dataset = sys.argv[6]
+outfile = sys.argv[7]
+compression = sys.argv[8]
+timestepAlt = sys.argv[9]
 try:
-	time_step = sys.argv[11]
+	time_step = sys.argv[10]
 except IndexError:
 	time_step = 'null'
 
 tmp_f = '../userFile/temp/'+curr_str+'/'
+tmp_shp = '../userFile/temp/shp_'+curr_str+'/'
 	
 def ClipRaster(args):
 	fileIn = args[0]
@@ -62,7 +62,7 @@ elif dataset in ['CCS', 'PERSIANN']:
 #Shapefile
 
 #check shapefile
-outShapefile = ShapeSelection(loc, shapefile)
+outShapefile = ShapeSelection(loc, shapefile, tmp_shp)
 shp_in = ogr.Open(outShapefile)
 shp_layer = shp_in.GetLayer()
 shp_extents = shp_layer.GetExtent()

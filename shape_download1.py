@@ -40,7 +40,7 @@ except IndexError:
 
 tmp_f = '../userFile/temp/'+curr_str+'/'
 tmp_f1 = '../userFile/temp/199'+curr_str+'/'
-
+tmp_shp = '../userFile/temp/shp_'+curr_str+'/'
 #check dataset
 if dataset == 'CDR':
 	resolution = '0.25'
@@ -60,7 +60,7 @@ elif dataset in ['CCS', 'PERSIANN']:
 	path_to_file = bpath+time_step+"/"+dataset+"_"+timestepAlt+"{"+date_start+".."+date_end+"}.tif 2>/dev/null"
 
 #check shapefile
-outShapefile = ShapeSelection(loc, shapefile)
+outShapefile = ShapeSelection(loc, shapefile, tmp_shp)
 shp_in = ogr.Open(outShapefile)
 shp_layer = shp_in.GetLayer()
 shp_extents = shp_layer.GetExtent()
@@ -104,5 +104,3 @@ for file in glob.iglob(outShapefile.split(".")[0]+".*"):
 	shutil.copy(file, tmp_f)
 
 shutil.make_archive(outfile, format=compression, root_dir=tmp_f)
-shutil.rmtree(tmp_f)
-os.remove(outShapefile)
