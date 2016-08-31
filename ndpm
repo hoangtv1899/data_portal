@@ -1,0 +1,26 @@
+#!/bin/sh
+
+y=`echo $1 | cut -c1-2`
+m=`echo $1 | cut -c3-4`
+
+   case "$m"
+      in
+        01)  dpm=31;;
+	02) if [ $y -eq 80  -o $y -eq 84 -o $y -eq 88 -o $y -eq 92  -o $y -eq 96 -o $y -eq 00 -o $y -eq 04 -o $y -eq 08 -o $y -eq 12 -o $y -eq 16 -o $y -eq 20 -o $y -eq 24 -o $y -eq 28 -o $y -eq 32 -o $y -eq 36 -o $y -eq 40 -o $y -eq 44 -o $y -eq 48 -o $y -eq 52 -o $y -eq 56 -o $y -eq 60 -o $y -eq 64 -o $y -eq 68 -o $y -eq 72 -o $y -eq 76 ]
+	     then
+		dpm=29
+	     else
+		dpm=28
+	     fi;;
+	03) dpm=31;;
+	04) dpm=30;;
+	05) dpm=31;;
+	06) dpm=30;;
+	07) dpm=31;;
+	08) dpm=31;;
+	09) dpm=30;;
+	10) dpm=31;;
+	11) dpm=30;;
+	12) dpm=31;;
+    esac
+echo $dpm

@@ -1,0 +1,87 @@
+#!/usr/local/epd-7.3-2-rh5-x86_64/bin/python2.7
+
+from datetime import date, timedelta, datetime
+import os
+import sys
+import subprocess
+
+def find_between( s, first, last ):
+    try:
+        start = s.index( first ) + len( first )
+        end = s.index( last, start )
+        a = s[start:end]
+        return [x for x in a.split(' ') if x]
+    except ValueError:
+        return ""
+
+out_file = sys.argv[1]
+dataset = sys.argv[2]
+userIP = sys.argv[3]
+input_string = sys.argv[4]
+
+#input_string='ha: 08010122 08010123 da: 080102 080103 080104 080105 080106 080107 080108 080109 080110 080111 080112 080113 080114 080115 080116 080117 080118 080119 080120 080121 080122 080123 080124 080125 080126 080127 080128 080129 080130 080131 mth: 0802 0803 0804 0805 0806 0807 0808 0809 0810 0811 0812 1201 1202 yrs: 09 10 11 dp: 120301 hp:'
+date_cat = ['ha:', 'da:', 'mth:', 'yrs:', 'dp:', 'hp:']
+year_list = []
+month_list = []
+day_list = []
+hour_list = []
+for index, list in enumerate(date_cat):
+	if index == 5:
+		x = input_string.split(list)[1]
+		a = [y for y in x.split(' ') if y]
+	else:
+		a = find_between( input_string, list, date_cat[index + 1])
+	if a:
+		if list in ['ha:', 'hp:']:
+			hour_list = hour_list + a
+		elif list in ['da:', 'dp:']:
+			day_list = day_list + a
+		elif list == 'mth:':
+			month_list = month_list + a
+		elif list == 'yrs:':
+			year_list = year_list + a
+
+date_list = []
+if dataset == 'CDR':
+	timestepH = ''
+	timestepD = ''
+	timestepM = ''
+	timestepY = ''
+	base_path = '/mnt/t/disk3/CHRSdata/Persiann_CDR/'
+elif dataset in ['CCS', 'PERSIANN']:
+	timestepH = '1h'
+	timestepD = '1d'
+	timestepM = '1m'
+	timestepY = '1y'
+	if dataset == 'PERSIANN':
+		base_path = '/mnt/t/disk3/CHRSdata/Persiann/'
+	elif dataset == 'CCS':
+		base_path = '/mnt/t/disk3/CHRSdata/Persiann_CCS/'
+	#add hour to list from CCS and PERSIANN
+	for i in hour_list:
+		i_time = datetime.strptime(i, '%y%m%d%H')
+		date_list.append(dataset+'_'+timestepH+i_time.strftime('%Y%m%d%H'))
+
+for j in day_list:
+	j_time = datetime.strptime(j, '%y%m%d')
+	date_list.append(dataset+'_'+timestepD+j_time.strftime('%Y%m%d'))
+
+for k in month_list:
+	k_time = datetime.strptime(k, '%y%m')
+	date_list.append(dataset+'_'+timestepM+k_time.strftime('%Y%m'))
+
+for l in year_list:
+	l_time = datetime.strptime(l, '%y')
+	date_list.append(dataset+'_'+timestepY+l_time.strftime('%Y'))
+
+file_list = []
+for root, dirs, files in os.walk(base_path):
+	for file in files:
+		if any(dl in file for dl in date_list):
+			file_list.append(os.path.join(root, file))
+
+#DO THE ACCUMULATION
+cmd = "b='/mnt/t/disk2/pconnect/CHRSData/userFile/sample_tif_files/temp2.vrt'; k='/mnt/t/disk2/pconnect/CHRSData/userFile/sample_tif_files/temp2.tif'; rm -rf $b $h; h='"+out_file+"'; /usr/local/epd-7.2-2-rh5-x86_64/bin/gdalbuildvrt -separate $b "+' '.join(sorted(file_list))+"; /mnt/t/disk2/pconnect/CHRSData/python/sum_raster.py $b $k; /usr/local/epd-7.2-2-rh5-x86_64/bin/gdal_translate -of GTiff -co COMPRESS=LZW $k $h; rm $b $k 2>/dev/null"
+
+subprocess.call(cmd, shell=True, executable="/bin/bash" )
+print 'done'

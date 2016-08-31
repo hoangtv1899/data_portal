@@ -1,0 +1,1 @@
+{"NoSimPoints": 445, "NoObsPoints": 445, "biasmap": 0.7652, "hit_bias": -43464.8501, "NoHit": 445, "NoFalse": 0, "NoMiss": 0, "NoCorrNeg": 0, "SumMiss": 0, "SumFalse": 0, "SumSimhit": 141683.0, "corr": 0.9888, "MAE": 99.5641, "RMSE": 118.7933, "POD": 1.0, "FAR": 0.0, "BIAS": 1.0, "HSS": Infinity, "HK": -Infinity, "ETS": Infinity}
