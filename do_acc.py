@@ -6,6 +6,7 @@ import sys
 import subprocess
 import shutil
 from PIL import Image
+from ShapeSelection import ShapeSelection
 import numpy as np
 
 def find_between( s, first, last ):
@@ -81,38 +82,10 @@ else:	#shape and rectangle
 			lry = br_dwn[5]
 		elif br_dwn[1] == 'shp':
 			shapefile = br_dwn[2]
-			id = br_dwn[3]
-			shp_name = (shapefile.split('/'))[-1]
-			if shp_name == 'country_fusion.shp':
-				prop = 'FIPS_CNTRY'
-				filter = '{} = \'{}\''.format(prop, id)
-				prior = "/usr/local/epd-7.3-2-rh5-x86_64/bin/"
-			elif shp_name == 'pol_divisions.shp':
-				prop = 'NAM'
-				filter = '{} = \'{}\''.format(prop, id)
-				prior = "/usr/local/epd-7.3-2-rh5-x86_64/bin/"
-			elif shp_name[:6] == 'basins':
-				prop = 'HYBAS_ID'
-				filter = '{} = \'{}\''.format(prop, id)
-				prior = "/usr/local/bin/"
-			else:
-				print 'please select boundary, pol_division or basins shapefiles...'
-				sys.exit()
-#select feature
-			if ' ' in id:
-				id = id.replace(' ', '_')
-# Save extent to a new Shapefile
-			outShapefile = '/mnt/t/disk2/pconnect/CHRSData/userFile/temp/shapes/'+id+'.shp'
-# Remove output shapefile if it already exists
-			try:
-				os.remove(outShapefile)
-				os.remove('/mnt/t/disk2/pconnect/CHRSData/userFile/temp/shapes/'+id+'.dbf')
-				os.remove('/mnt/t/disk2/pconnect/CHRSData/userFile/temp/shapes/'+id+'.shx')
-			except OSError:
-				pass
-			cmd1 = prior+"ogr2ogr -f \"ESRI Shapefile\" -where \\ \""+filter+"\" "+outShapefile+" "+shapefile
-# print command1
-			subprocess.Popen(cmd1, shell=True).communicate()
+			loc = br_dwn[3]
+			loc = loc[1:-1].split(",")
+			# Save extent to a new Shapefile
+			outShapefile = ShapeSelection(loc, shapefile, '/mnt/t/disk2/pconnect/CHRSData/userFile/'+userIP+'/tempShapeAcc')
 	elif br_dwn[0] in ['CCS', 'PERSIANN']:
 		timestepH = '1h'
 		timestepD = '1d'
