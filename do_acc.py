@@ -5,7 +5,7 @@ import os
 import sys
 import subprocess
 import shutil
-from PIL import Image
+from osgeo import gdal
 from ShapeSelection import ShapeSelection
 import numpy as np
 
@@ -106,38 +106,10 @@ else:	#shape and rectangle
 			lry = br_dwn[5]
 		elif br_dwn[1] == 'shp':
 			shapefile = br_dwn[2]
-			id = br_dwn[3]
-			shp_name = (shapefile.split('/'))[-1]
-			if shp_name == 'country_fusion.shp':
-				prop = 'FIPS_CNTRY'
-				filter = '{} = \'{}\''.format(prop, id)
-				prior = "/usr/local/epd-7.3-2-rh5-x86_64/bin/"
-			elif shp_name == 'pol_divisions.shp':
-				prop = 'NAM'
-				filter = '{} = \'{}\''.format(prop, id)
-				prior = "/usr/local/epd-7.3-2-rh5-x86_64/bin/"
-			elif shp_name[:6] == 'basins':
-				prop = 'HYBAS_ID'
-				filter = '{} = \'{}\''.format(prop, id)
-				prior = "/usr/local/bin/"
-			else:
-				print 'please select boundary, pol_division or basins shapefiles...'
-				sys.exit()
-#select feature
-			if ' ' in id:
-				id = id.replace(' ', '_')
-# Save extent to a new Shapefile
-			outShapefile = '/mnt/t/disk2/pconnect/CHRSData/userFile/temp/shapes/'+id+'.shp'
-# Remove output shapefile if it already exists
-			try:
-				os.remove(outShapefile)
-				os.remove('/mnt/t/disk2/pconnect/CHRSData/userFile/temp/shapes/'+id+'.dbf')
-				os.remove('/mnt/t/disk2/pconnect/CHRSData/userFile/temp/shapes/'+id+'.shx')
-			except OSError:
-				pass
-			cmd1 = prior+"ogr2ogr -f \"ESRI Shapefile\" -where \\ \""+filter+"\" "+outShapefile+" "+shapefile
-# print command1
-			subprocess.Popen(cmd1, shell=True).communicate()
+			loc = br_dwn[3]
+			loc = loc[1:-1].split(",")
+			# Save extent to a new Shapefile
+			outShapefile = ShapeSelection(loc, shapefile, '/mnt/t/disk2/pconnect/CHRSData/userFile/'+userIP+'/tempShapeAcc')
 	dataset1 = br_dwn[0]
 
 for j in day_list:
@@ -152,6 +124,8 @@ for l in year_list:
 	l_time = datetime.strptime(l, '%y')
 	date_list.append(dataset1+'_'+timestepY+l_time.strftime('%Y')+'.tif')
 
+print date_list
+	
 file_list = []
 for root, dirs, files in os.walk(base_path):
 	for file in files:
@@ -161,7 +135,7 @@ for root, dirs, files in os.walk(base_path):
 #print file_list
 #DO THE ACCUMULATION
 if dataset in ['CDR', 'CCS', 'PERSIANN']:
-	cmd = "b='/mnt/t/disk2/pconnect/CHRSData/userFile/sample_tif_files/"+userIP+".vrt'; k='/mnt/t/disk2/pconnect/CHRSData/userFile/sample_tif_files/"+userIP+".tif'; h='"+out_file+"'; /usr/local/epd-7.2-2-rh5-x86_64/bin/gdalbuildvrt -separate $b "+' '.join(sorted(file_list))+"; /mnt/t/disk2/pconnect/CHRSData/python/sum_raster.py $b $k; /usr/local/epd-7.2-2-rh5-x86_64/bin/gdal_translate -of GTiff -co COMPRESS=LZW $k $h; rm $b $k 2>/dev/null"
+	cmd = "b='/mnt/t/disk2/pconnect/CHRSData/userFile/sample_tif_files/"+userIP+".vrt'; k='/mnt/t/disk2/pconnect/CHRSData/userFile/sample_tif_files/"+userIP+".tif'; h='"+out_file+"'; /usr/local/epd-7.2-2-rh5-x86_64/bin/gdalbuildvrt -separate $b "+' '.join(sorted(file_list))+"; /mnt/t/disk2/pconnect/CHRSData/python/sum_raster.py $b $k "+dataset+"; /usr/local/epd-7.2-2-rh5-x86_64/bin/gdal_translate -of GTiff -co COMPRESS=LZW $k $h; rm $b $k 2>/dev/null"
 	subprocess.call(cmd, shell=True, executable="/bin/bash" )
 	print 'done'
 else:
@@ -206,9 +180,9 @@ else:
 		subprocess.call(cmd, shell=True, executable="/bin/bash" )
 		print 'done'
 	shutil.rmtree(temp_folder0)
-im = Image.open(out_file)
-array = np.array(im)
-array = array[array != -99]
+im = gdal.Open(out_file)
+array = im.ReadAsArray()
+array = np.ma.masked_where(array == -99, array)
 print "max: %.2f" % array.max()
 print "min: %.2f" % array.min()
 print "mean: %.2f" % array.mean()
