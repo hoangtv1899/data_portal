@@ -34,7 +34,7 @@ elif dataset in ['CCS', 'PERSIANN']:
 	else:
 		bpath = "/mnt/t/disk3/CHRSdata/Persiann/"
 	path_to_file = bpath+time_step+"/"+dataset+"_"+timestepAlt+"{"+date_start+".."+date_end+"}.tif 2>/dev/null"
-
+	
 pool = multiprocessing.Pool(processes = 4)
 if file_type == 'ArcGrid':
 	if dataset == 'CDR':

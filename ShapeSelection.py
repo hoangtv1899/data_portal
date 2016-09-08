@@ -59,7 +59,7 @@ def FindFeature(args):
 			feat_name = feat_name.replace(' ','_')
 		out_shape = tmp_shp+feat_name+'.shp'
 		if os.path.isfile(out_shape):
-			os.remove(out_shape)
+			os.system("rm -f "+tmp_shp+feat_name+".*")
 		out_shp = driver.CreateDataSource(out_shape)
 		out_layer = out_shp.CreateLayer(prop, geom_type=ogr.wkbPolygon)
 		out_layer.CreateField(idField)

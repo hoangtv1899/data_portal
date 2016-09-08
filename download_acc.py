@@ -1,10 +1,17 @@
 #!/usr/local/epd-7.3-2-rh5-x86_64/bin/python2.7
 
-from datetime import date, timedelta, datetime
+from datetime import datetime
 import os
+import ogr
 import sys
-import subprocess
 import shutil
+import numpy as np
+import multiprocessing
+import itertools
+from zipfile import ZipFile
+from ShapeSelection import ShapeSelection
+from asc_format_ccs1 import AscFormat
+from asc_format1 import AscFormatFloat
 
 def find_between( s, first, last ):
     try:
@@ -15,6 +22,37 @@ def find_between( s, first, last ):
     except ValueError:
         return ""
 
+def ClipRaster(args):
+	ulx = args[0]
+	uly = args[1]
+	lrx = args[2]
+	lry = args[3]
+	fileIn = args[4]
+	dest_file = args[5]
+	os.system("/usr/local/epd-7.2-2-rh5-x86_64/bin/gdal_translate -q -ot Float32 -a_nodata -99 -projwin "+ulx+" "+uly+" "+lrx+" "+lry+" -of GTiff "+fileIn+" "+dest_file+" -co COMPRESS=LZW")
+
+def EditRaster(args):
+	ulx = args[0]
+	uly = args[1]
+	lrx = args[2]
+	lry = args[3]
+	fileIn = args[4]
+	os.system("/usr/local/epd-7.3-2-rh5-x86_64/bin/python2.7 /root/gdal-1.11.2/swig/python/scripts/gdal_edit.py -a_ullr "+ulx+" "+uly+" "+lrx+" "+lry+" "+fileIn)
+	
+def MergeRaster(args):
+	fileIn1 = args[0]
+	fileIn2 = args[1]
+	fileOut = args[2]
+	os.system("/usr/local/epd-7.3-2-rh5-x86_64/bin/python2.7 /root/gdal-1.11.2/swig/python/scripts/gdal_merge.py -q -o "+fileOut+" "+fileIn1+" "+fileIn2+" -co COMPRESS=LZW")
+	
+def ClipRasterShape(args):
+	fileIn = args[0]
+	outShapefile = args[1]
+	resolution = args[2]
+	p1 = args[3]
+	dest_file = args[4]
+	os.system("/usr/local/epd-7.3-2-rh5-x86_64/bin/gdalwarp -overwrite -dstnodata -99 -q -cutline "+outShapefile+" -tr "+resolution+" "+resolution+" -te "+p1+" -of GTiff -ot Float32 "+fileIn+" "+dest_file)
+	
 out_file = sys.argv[1]
 dataset = sys.argv[2]
 userIP = sys.argv[3]
@@ -46,15 +84,19 @@ for index, list in enumerate(date_cat):
 		elif list == 'yrs:':
 			year_list = year_list + a
 
+temp_folder0 = '../userFile/temp/'+currentDateTime+'/'
+temp_folder01 = '../userFile/temp/199'+currentDateTime+'/'
+
 date_list = []
 if dataset == 'CDR':
+	dataset1 = dataset
 	timestepH = ''
 	timestepD = ''
 	timestepM = ''
 	timestepY = ''
 	base_path = '/mnt/t/disk3/CHRSdata/Persiann_CDR/'
-	dataset1 = dataset
 elif dataset in ['CCS', 'PERSIANN']:
+	dataset1 = dataset
 	timestepH = '1h'
 	timestepD = '1d'
 	timestepM = '1m'
@@ -67,10 +109,11 @@ elif dataset in ['CCS', 'PERSIANN']:
 	for i in hour_list:
 		i_time = datetime.strptime(i, '%y%m%d%H')
 		date_list.append(dataset+'_'+timestepH+i_time.strftime('%Y%m%d%H'))
-	dataset1 = dataset
 else:	#shape and rectangle
 	br_dwn = dataset.split(' ')
-	if br_dwn[0] == 'CDR':
+	dataset1 = br_dwn[0]
+	if dataset1 == 'CDR':
+		resolution = '0.25'
 		timestepH = ''
 		timestepD = ''
 		timestepM = ''
@@ -83,46 +126,29 @@ else:	#shape and rectangle
 			lry = br_dwn[5]
 		elif br_dwn[1] == 'shp':
 			shapefile = br_dwn[2]
-			id = br_dwn[3]
-			shp_name = (shapefile.split('/'))[-1]
-			if shp_name == 'country_fusion.shp':
-				prop = 'FIPS_CNTRY'
-				filter = '{} = \'{}\''.format(prop, id)
-				prior = "/usr/local/epd-7.3-2-rh5-x86_64/bin/"
-			elif shp_name == 'pol_divisions.shp':
-				prop = 'NAM'
-				filter = '{} = \'{}\''.format(prop, id)
-				prior = "/usr/local/epd-7.3-2-rh5-x86_64/bin/"
-			elif shp_name[:6] == 'basins':
-				prop = 'HYBAS_ID'
-				filter = '{} = \'{}\''.format(prop, id)
-				prior = "/usr/local/bin/"
-			else:
-				print 'please select boundary, pol_division or basins shapefiles...'
+			loc = br_dwn[3]
+			loc = loc[1:-1].split(",")
+			outShapefile = ShapeSelection(loc, shapefile, temp_folder0)
+			shp_in = ogr.Open(outShapefile)
+			shp_layer = shp_in.GetLayer()
+			shp_extents = shp_layer.GetExtent()
+			[xmin1, xmax1, ymin1, ymax1] = np.ceil(shp_extents) + np.ceil((shp_extents - np.ceil(shp_extents))/float(resolution)) *float(resolution) + [-float(resolution), float(resolution), -float(resolution), float(resolution)]
+			if ymin1 >= 60:
 				sys.exit()
-#select feature
-			if ' ' in id:
-				id = id.replace(' ', '_')
-# Save extent to a new Shapefile
-			outShapefile = '/mnt/t/disk2/pconnect/CHRSData/userFile/temp/shapes/'+id+'.shp'
-# Remove output shapefile if it already exists
-			try:
-				os.remove(outShapefile)
-				os.remove('/mnt/t/disk2/pconnect/CHRSData/userFile/temp/shapes/'+id+'.dbf')
-				os.remove('/mnt/t/disk2/pconnect/CHRSData/userFile/temp/shapes/'+id+'.shx')
-			except OSError:
-				pass
-			cmd1 = prior+"ogr2ogr -f \"ESRI Shapefile\" -where \\ \""+filter+"\" "+outShapefile+" "+shapefile
-# print command1
-			subprocess.Popen(cmd1, shell=True).communicate()
-	elif br_dwn[0] in ['CCS', 'PERSIANN']:
+			elif ymax1 >= 60:
+				ymax1 = 60
+			p = [xmin1, ymin1, xmax1, ymax1]
+			p1 = map(str, p)
+	elif dataset1 in ['CCS', 'PERSIANN']:
 		timestepH = '1h'
 		timestepD = '1d'
 		timestepM = '1m'
 		timestepY = '1y'
-		if br_dwn[0] == 'PERSIANN':
+		if dataset1 == 'PERSIANN':
+			resolution = '0.25'
 			base_path = '/mnt/t/disk3/CHRSdata/Persiann/'
-		elif br_dwn[0] == 'CCS':
+		elif dataset1 == 'CCS':
+			resolution = '0.04'
 			base_path = '/mnt/t/disk3/CHRSdata/Persiann_CCS/'
 		#add hour to list from CCS and PERSIANN
 		for i in hour_list:
@@ -135,40 +161,19 @@ else:	#shape and rectangle
 			lry = br_dwn[5]
 		elif br_dwn[1] == 'shp':
 			shapefile = br_dwn[2]
-			id = br_dwn[3]
-			shp_name = (shapefile.split('/'))[-1]
-			if shp_name == 'country_fusion.shp':
-				prop = 'FIPS_CNTRY'
-				filter = '{} = \'{}\''.format(prop, id)
-				prior = "/usr/local/epd-7.3-2-rh5-x86_64/bin/"
-			elif shp_name == 'pol_divisions.shp':
-				prop = 'NAM'
-				filter = '{} = \'{}\''.format(prop, id)
-				prior = "/usr/local/epd-7.3-2-rh5-x86_64/bin/"
-			elif shp_name[:6] == 'basins':
-				prop = 'HYBAS_ID'
-				filter = '{} = \'{}\''.format(prop, id)
-				prior = "/usr/local/bin/"
-			else:
-				print 'please select boundary, pol_division or basins shapefiles...'
+			loc = br_dwn[3]
+			loc = loc[1:-1].split(",")
+			outShapefile = ShapeSelection(loc, shapefile, temp_folder0)
+			shp_in = ogr.Open(outShapefile)
+			shp_layer = shp_in.GetLayer()
+			shp_extents = shp_layer.GetExtent()
+			[xmin1, xmax1, ymin1, ymax1] = np.ceil(shp_extents) + np.ceil((shp_extents - np.ceil(shp_extents))/float(resolution)) *float(resolution) + [-float(resolution), float(resolution), -float(resolution), float(resolution)]
+			if ymin1 >= 60:
 				sys.exit()
-#select feature
-			if ' ' in id:
-				id = id.replace(' ', '_')
-# Save extent to a new Shapefile
-			outShapefile = '/mnt/t/disk2/pconnect/CHRSData/userFile/temp/shapes/'+id+'.shp'
-# Remove output shapefile if it already exists
-			try:
-				os.remove(outShapefile)
-				os.remove('/mnt/t/disk2/pconnect/CHRSData/userFile/temp/shapes/'+id+'.dbf')
-				os.remove('/mnt/t/disk2/pconnect/CHRSData/userFile/temp/shapes/'+id+'.shx')
-			except OSError:
-				pass
-			cmd1 = prior+"ogr2ogr -f \"ESRI Shapefile\" -where \\ \""+filter+"\" "+outShapefile+" "+shapefile
-# print command1
-			subprocess.Popen(cmd1, shell=True).communicate()
-	dataset1 = br_dwn[0]
-
+			elif ymax1 >= 60:
+				ymax1 = 60
+			p = [xmin1, ymin1, xmax1, ymax1]
+			p1 = map(str, p)
 for j in day_list:
 	j_time = datetime.strptime(j, '%y%m%d')
 	date_list.append(dataset1+'_'+timestepD+j_time.strftime('%Y%m%d'))
@@ -190,160 +195,57 @@ for root, dirs, files in os.walk(base_path):
 #print file_list
 #DO THE ACCUMULATION
 
-if dataset in ['CDR', 'CCS', 'PERSIANN']:
-	cmd = "b='/mnt/t/disk2/pconnect/CHRSData/userFile/sample_tif_files/"+userIP+".vrt'; k='/mnt/t/disk2/pconnect/CHRSData/userFile/sample_tif_files/"+userIP+".tif'; h='"+out_file+"'; /usr/local/epd-7.2-2-rh5-x86_64/bin/gdalbuildvrt -separate $b "+' '.join(sorted(file_list))+"; /mnt/t/disk2/pconnect/CHRSData/python/sum_raster.py $b $k; /usr/local/epd-7.2-2-rh5-x86_64/bin/gdal_translate -of GTiff -co COMPRESS=LZW $k $h; rm $b $k 2>/dev/null"
-	subprocess.call(cmd, shell=True, executable="/bin/bash" )
-	print 'done'
+pool = multiprocessing.Pool(processes = 4)
+if dataset in ['CCS', 'CDR', 'PERSIANN']:
+	os.system("b='"+temp_folder0+userIP+".vrt'; h='"+temp_folder0+os.path.splitext(os.path.basename(out_file))[0]+".tif'; /usr/local/epd-7.2-2-rh5-x86_64/bin/gdalbuildvrt -separate $b "+' '.join(sorted(file_list))+"; /mnt/t/disk2/pconnect/CHRSData/python/sum_raster.py $b $h "+dataset1+"; rm $b 2>/dev/null")
+	print 'done'	
 else:
-	dataset = dataset.split(' ')[0]
-	if not os.path.exists('../userFile/temp/'):
-		os.makedirs('../userFile/temp/')
-	if not os.path.exists('../userFile/temp/shapes/'):
-		os.makedirs('../userFile/temp/shapes/')
-	temp_folder0 = '../userFile/temp/'+userIP+'/'
-	if not os.path.exists(temp_folder0):
-		os.makedirs(temp_folder0)
+	dataset1 = dataset.split(' ')[0]
 	if br_dwn[1] == 'rec':
+		uly = '60' if float(uly) > 60 else uly
+		lry = '-60' if float(lry) < -60 else lry
+		uly_arr = itertools.repeat(uly, len(file_list))
+		ulx_arr = itertools.repeat(ulx, len(file_list))
+		lry_arr = itertools.repeat(lry, len(file_list))
+		lrx_arr = itertools.repeat(lrx, len(file_list))
+		XE = ['180']* len(file_list)
+		XW = ['-180']* len(file_list)
+		list_dest_file = [temp_folder0+os.path.splitext(os.path.basename(file2))[0]+'.tif' for file2 in file_list]
 		if float(ulx) <= float(lrx):
-			uly = '60' if float(uly) > 60 else uly
-			lry = '-60' if float(lry) < -60 else lry
-			cmd0 = "for b in "+' '.join(sorted(file_list))+"; do echo 'processing '$b; /usr/local/epd-7.2-2-rh5-x86_64/bin/gdal_translate -a_nodata -99 -projwin "+ulx+" "+uly+" "+lrx+" "+lry+" -of GTiff $b "+temp_folder0+"$(basename ${b%.*}).tif -co COMPRESS=LZW; done"
-			subprocess.call(cmd0, shell=True, executable="/bin/bash")
-			cmd = "b='/mnt/t/disk2/pconnect/CHRSData/userFile/sample_tif_files/"+userIP+".vrt'; k='/mnt/t/disk2/pconnect/CHRSData/userFile/sample_tif_files/"+userIP+".tif'; h='"+out_file+"'; /usr/local/epd-7.2-2-rh5-x86_64/bin/gdalbuildvrt -separate $b "+temp_folder0+"*.tif; /mnt/t/disk2/pconnect/CHRSData/python/sum_raster.py $b $k; /usr/local/epd-7.2-2-rh5-x86_64/bin/gdal_translate -of GTiff -co COMPRESS=LZW $k $h; rm $b $k 2>/dev/null"
-			subprocess.call(cmd, shell=True, executable="/bin/bash")
+			pool.map(ClipRaster, itertools.izip(ulx_arr, uly_arr, lrx_arr, lry_arr, file_list, list_dest_file))
+			os.system("b='"+temp_folder0+userIP+".vrt'; h='"+temp_folder0+os.path.splitext(os.path.basename(out_file))[0]+".tif'; /usr/local/epd-7.2-2-rh5-x86_64/bin/gdalbuildvrt -separate $b "+temp_folder0+"*.tif; /mnt/t/disk2/pconnect/CHRSData/python/sum_raster.py $b $h "+dataset1+"; rm $b 2>/dev/null")
 			print 'done'
 		else:
-			temp_folder1 = '../userFile/temp/h'+userIP+'/'
-			temp_folder2 = '../userFile/temp/s'+userIP+'/'
-			if not os.path.exists(temp_folder1):
-				os.makedirs(temp_folder1)
-			if not os.path.exists(temp_folder2):
-				os.makedirs(temp_folder2)
-			uly = '60' if float(uly) > 60 else uly
-			lry = '-60' if float(lry) < -60 else lry
-			cmd1 = "for b in "+' '.join(sorted(file_list))+"; do  /usr/local/epd-7.2-2-rh5-x86_64/bin/gdal_translate -a_nodata -99 -projwin "+ulx+" "+uly+" 180 "+lry+" -of GTiff $b "+temp_folder1+"$(basename ${b%.*}).tif -co COMPRESS=LZW >& /dev/null; done"
-			cmd2 = "for b in "+' '.join(sorted(file_list))+"; do  /usr/local/epd-7.2-2-rh5-x86_64/bin/gdal_translate -a_nodata -99 -projwin -180 "+uly+" "+lrx+" "+lry+" -of GTiff $b "+temp_folder2+"$(basename ${b%.*}).tif -co COMPRESS=LZW >& /dev/null; done"
-			cmd3 = "for b in "+temp_folder1+"*.tif; do /usr/local/epd-7.3-2-rh5-x86_64/bin/python2.7 /root/gdal-1.11.2/swig/python/scripts/gdal_merge.py -o "+temp_folder0+"$(basename ${b%.*}).tif $b "+temp_folder2+"$(basename ${b%.*}).tif -co COMPRESS=LZW -a_nodata -99 >& /dev/null; done"
-			subprocess.Popen("{}; {}; {}".format(cmd1, cmd2, cmd3), shell=True, executable="/bin/bash").communicate()
-			shutil.rmtree(temp_folder1)
-			shutil.rmtree(temp_folder2)
-			cmd = "b='/mnt/t/disk2/pconnect/CHRSData/userFile/sample_tif_files/"+userIP+".vrt'; k='/mnt/t/disk2/pconnect/CHRSData/userFile/sample_tif_files/"+userIP+".tif'; h='"+out_file+"'; /usr/local/epd-7.2-2-rh5-x86_64/bin/gdalbuildvrt -separate $b "+temp_folder0+"*.tif; /mnt/t/disk2/pconnect/CHRSData/python/sum_raster.py $b $k; /usr/local/epd-7.2-2-rh5-x86_64/bin/gdal_translate -of GTiff -co COMPRESS=LZW $k $h; rm $b $k 2>/dev/null"
-			subprocess.call(cmd, shell=True, executable="/bin/bash")
+			lrx1 = float(lrx) + 360
+			lrx1 = str(lrx1)
+			ulx1 = float(ulx) - 360
+			ulx1 = str(ulx1)
+			ulx1_arr = [ulx1]* len(file_list)
+			list_temp_file1 = [temp_folder01+os.path.splitext(os.path.basename(file2))[0]+'.tif' for file2 in file_list]
+			list_temp_file2 = [temp_folder01+os.path.splitext(os.path.basename(file2))[0]+'_2.tif' for file2 in file_list]
+			pool.map(ClipRaster, itertools.izip(ulx_arr, uly_arr, XE, lry_arr, file_list,list_temp_file1))
+			pool.map(ClipRaster, itertools.izip(XW, uly_arr, lrx_arr, lry_arr, file_list,list_temp_file2))
+			pool.map(EditRaster, itertools.izip(ulx1_arr, uly_arr, XW, lry_arr,list_temp_file1))
+			pool.map(MergeRaster, itertools.izip(list_temp_file1, list_temp_file2, list_dest_file))
+			os.system("b='"+temp_folder0+userIP+".vrt'; h='"+temp_folder0+os.path.splitext(os.path.basename(out_file))[0]+".tif'; /usr/local/epd-7.2-2-rh5-x86_64/bin/gdalbuildvrt -separate $b "+temp_folder0+"*.tif; /mnt/t/disk2/pconnect/CHRSData/python/sum_raster.py $b $h "+dataset1+"; rm $b 2>/dev/null")
 			print 'done'
 	elif br_dwn[1] == 'shp':
-		cmd0 = "for b in "+' '.join(sorted(file_list))+"; do /usr/local/epd-7.3-2-rh5-x86_64/bin/gdalwarp -overwrite -dstnodata -99 -q -cutline "+outShapefile+" -of GTiff $b "+temp_folder0+"$(basename ${b%.*}).tif -co COMPRESS=LZW; done"
-		subprocess.call(cmd0, shell=True, executable="/bin/bash")
-		cmd = "b='/mnt/t/disk2/pconnect/CHRSData/userFile/sample_tif_files/"+userIP+".vrt'; k='/mnt/t/disk2/pconnect/CHRSData/userFile/sample_tif_files/"+userIP+".tif'; h='"+out_file+"'; /usr/local/epd-7.2-2-rh5-x86_64/bin/gdalbuildvrt -separate $b "+temp_folder0+"*.tif; /mnt/t/disk2/pconnect/CHRSData/python/sum_raster.py $b $k; /usr/local/epd-7.2-2-rh5-x86_64/bin/gdal_translate -of GTiff -co COMPRESS=LZW $k $h; rm $b $k 2>/dev/null"
-		subprocess.call(cmd, shell=True, executable="/bin/bash")
+		ShapeArray = itertools.repeat(outShapefile, len(file_list))
+		ResArray = itertools.repeat(resolution, len(file_list))
+		CoorArray = itertools.repeat(' '.join(p1), len(file_list))
+		list_dest_file = [temp_folder0+os.path.splitext(os.path.basename(file2))[0]+'.tif' for file2 in file_list]
+		pool.map(ClipRasterShape, itertools.izip(file_list, ShapeArray, ResArray, CoorArray,list_dest_file))
+		os.system("b='"+temp_folder0+userIP+".vrt'; h='"+temp_folder0+os.path.splitext(os.path.basename(out_file))[0]+".tif'; /usr/local/epd-7.2-2-rh5-x86_64/bin/gdalbuildvrt -separate $b "+temp_folder0+"*.tif; /mnt/t/disk2/pconnect/CHRSData/python/sum_raster.py $b $h "+dataset1+"; rm $b 2>/dev/null")
 		print 'done'
-	shutil.rmtree(temp_folder0)
+if file_type == 'Tif':
+	os.system("cp "+temp_folder0+os.path.splitext(os.path.basename(out_file))[0]+".tif "+out_file)
+elif file_type == 'ArcGrid':
+	if dataset1 == 'CDR':
+		AscFormatFloat([temp_folder0+os.path.splitext(os.path.basename(out_file))[0]+".tif", out_file])
+	elif dataset1 in ['PERSIANN', 'CCS']:
+		AscFormat([temp_folder0+os.path.splitext(os.path.basename(out_file))[0]+".tif", out_file])
 
-temp_folder1 = '../userFile/temp/'+userIP+'/'
-if not os.path.exists(temp_folder1):
-	os.makedirs(temp_folder1)
+zip_name = out_file.split('_')[0]+"_"+currentDateTime+'.'+compression
+with ZipFile(zip_name, 'w') as myzip:
+	myzip.write(out_file, os.path.basename(out_file))
 
-#temp folder use for creating asc file while not keeping tif file
-temp_folder0 = '../userFile/temp/0'+userIP+'/'
-if not os.path.exists(temp_folder0):
-	os.makedirs(temp_folder0)
-
-if file_type == 'ArcGrid':
-	if dataset == 'CDR':
-		resolution = '0.25'
-		if domain == '0':
-			command = "for b in `ls "+out_file+"`; do "+os.path.dirname(__file__)+"/asc_format.py $b "+temp_folder1+"$(basename ${b%.*}).asc; done"
-			subprocess.Popen(command, shell=True, executable="/bin/bash").communicate()
-		elif domain == '1':
-			lat = 60
-			if float(ulx) <= float(lrx):
-				uly = str(lat) if float(uly) > lat else uly
-				lry = str(-lat) if float(lry) < -lat else lry
-				command = "for b in "+out_file+"; do /usr/local/bin/gdal_translate -a_nodata -99 -projwin "+ulx+" "+uly+" "+lrx+" "+lry+" -of AAIGrid "+out_file+" "+temp_folder0+"$(basename ${b%.*}).asc; "+os.path.dirname(__file__)+"/asc_format_ccs.py "+temp_folder0+"$(basename ${b%.*}).asc "+temp_folder1+"$(basename ${b%.*}).asc; done"
-				subprocess.Popen(command, shell=True, executable="/bin/bash").communicate()
-			elif float(ulx) > float(lrx):
-				lrx1 = float(lrx) + 360
-				lrx1 = str(lrx1)
-				ulx1 = float(ulx) - 360
-				ulx1 = str(ulx1)
-				cmd4 = "for b in "+out_file+"; do /usr/local/epd-7.3-2-rh5-x86_64/bin/python2.7 /root/gdal-1.11.2/swig/python/scripts/gdal_merge.py -o "+temp_folder0+"$(basename ${b%.*}).tif $b "+temp_folder0+"$(basename ${b%.*}).tif -co COMPRESS=LZW >& /dev/null; done"
-				cmd5 = "for b in "+temp_folder0+"*.tif; do /usr/local/epd-7.2-2-rh5-x86_64/bin/gdal_translate -of AAIGrid $b "+temp_folder0+"$(basename ${b%.*}).asc >& /dev/null; "+os.path.dirname(__file__)+"/asc_format_ccs.py "+temp_folder0+"$(basename ${b%.*}).asc "+temp_folder1+"$(basename ${b%.*}).asc; done"
-				subprocess.Popen("{}; {}".format(cmd4, cmd5), shell=True, executable="/bin/bash").communicate()
-		else:
-			command = "for b in `ls "+out_file+"`; do /usr/local/epd-7.3-2-rh5-x86_64/bin/gdalwarp -overwrite -dstnodata -99 -q -cutline "+outShapefile+" -tr "+resolution+" "+resolution+" -crop_to_cutline -of GTiff $b "+temp_folder0+"$(basename ${b%.*}).tif; done"
-			command1 = "for file in "+temp_folder0+"*.tif; do /usr/local/epd-7.2-2-rh5-x86_64/bin/gdal_translate -of AAIGrid $file "+temp_folder0+"$(basename ${file%.*}).asc; "+os.path.dirname(__file__)+"/asc_format.py "+temp_folder0+"$(basename ${file%.*}).asc "+temp_folder1+"$(basename ${file%.*}).asc; done"
-			command2 = "cp /mnt/t/disk2/pconnect/CHRSData/userFile/temp/shapes/"+id+".* "+temp_folder1
-			subprocess.Popen(command, shell=True, executable="/bin/bash").communicate()
-			subprocess.Popen(command1, shell=True, executable="/bin/bash").communicate()
-			subprocess.Popen(command2, shell=True, executable="/bin/bash").communicate()
-			prjcmd = "cp /mnt/t/disk2/pconnect/CHRSData/projection/US.prj "+temp_folder1+id+".prj"
-			#prjcmd = "cp /mnt/t/disk2/pconnect/CHRSData/projection/US.prj "+temp_folder1
-			subprocess.Popen(prjcmd, shell=True, executable="/bin/bash").communicate()
-	else:
-		if dataset == 'PERSIANN':
-			resolution = '0.25'
-		else:
-			resolution = '0.04'
-		if domain == '0':
-			command = "for b in `ls "+out_file+"`; do "+os.path.dirname(__file__)+"/asc_format_ccs.py $b "+temp_folder1+"$(basename ${b%.*}).asc; done"
-			subprocess.Popen(command, shell=True, executable="/bin/bash").communicate()
-		elif domain == '1':
-			lat = 60
-			if float(ulx) <= float(lrx):
-				uly = str(lat) if float(uly) > lat else uly
-				lry = str(-lat) if float(lry) < -lat else lry
-				command = "for b in "+out_file+"; do /usr/local/bin/gdal_translate -a_nodata -99 -projwin "+ulx+" "+uly+" "+lrx+" "+lry+" -of AAIGrid "+out_file+" "+temp_folder0+"$(basename ${b%.*}).asc; "+os.path.dirname(__file__)+"/asc_format_ccs.py "+temp_folder0+"$(basename ${b%.*}).asc "+temp_folder1+"$(basename ${b%.*}).asc; done"
-				subprocess.Popen(command, shell=True, executable="/bin/bash").communicate()
-			elif float(ulx) > float(lrx):
-				lrx1 = float(lrx) + 360
-				lrx1 = str(lrx1)
-				ulx1 = float(ulx) - 360
-				ulx1 = str(ulx1)
-				cmd4 = "for b in "+out_file+"; do /usr/local/epd-7.3-2-rh5-x86_64/bin/python2.7 /root/gdal-1.11.2/swig/python/scripts/gdal_merge.py -o "+temp_folder0+"$(basename ${b%.*}).tif $b "+temp_folder0+"$(basename ${b%.*}).tif -co COMPRESS=LZW >& /dev/null; done"
-				cmd5 = "for b in "+temp_folder0+"*.tif; do /usr/local/epd-7.2-2-rh5-x86_64/bin/gdal_translate -of AAIGrid $b "+temp_folder0+"$(basename ${b%.*}).asc >& /dev/null; "+os.path.dirname(__file__)+"/asc_format_ccs.py "+temp_folder0+"$(basename ${b%.*}).asc "+temp_folder1+"$(basename ${b%.*}).asc; done"
-				subprocess.Popen("{}; {}".format(cmd4, cmd5), shell=True, executable="/bin/bash").communicate()
-		else:
-			command = "for b in `ls "+out_file+"`; do /usr/local/epd-7.3-2-rh5-x86_64/bin/gdalwarp -overwrite -dstnodata -99 -q -cutline "+outShapefile+" -tr "+resolution+" "+resolution+" -crop_to_cutline -of GTiff $b "+temp_folder0+"$(basename ${b%.*}).tif; done"
-			command1 = "for file in "+temp_folder0+"*.tif; do /usr/local/epd-7.2-2-rh5-x86_64/bin/gdal_translate -of AAIGrid $file "+temp_folder0+"$(basename ${file%.*}).asc; "+os.path.dirname(__file__)+"/asc_format_ccs.py "+temp_folder0+"$(basename ${file%.*}).asc "+temp_folder1+"$(basename ${file%.*}).asc; done"
-			command2 = "cp /mnt/t/disk2/pconnect/CHRSData/userFile/temp/shapes/"+id+".* "+temp_folder1
-			subprocess.Popen(command, shell=True, executable="/bin/bash").communicate()
-			subprocess.Popen(command1, shell=True, executable="/bin/bash").communicate()
-			subprocess.Popen(command2, shell=True, executable="/bin/bash").communicate()
-			prjcmd = "cp /mnt/t/disk2/pconnect/CHRSData/projection/US.prj "+temp_folder1+id+".prj"
-			subprocess.Popen(prjcmd, shell=True, executable="/bin/bash").communicate()
-	zip_name = out_file.split('_')[0]+"_"+currentDateTime
-	#zip_name = dataset+"_"+currentDateTime
-	shutil.make_archive(zip_name, format=compression, root_dir=temp_folder1)
-
-elif file_type == 'Tif':
-	if dataset == 'CDR':
-		resolution = '0.25'
-		if domain in ['0', '1']:
-			command = "for b in `ls "+out_file+"`; do cp "+out_file+" "+temp_folder1+" >& /dev/null; done"
-		else:
-			command = "for b in `ls "+out_file+"`; do /usr/local/epd-7.3-2-rh5-x86_64/bin/gdalwarp -overwrite -dstnodata -99 -q -cutline "+outShapefile+" -tr "+resolution+" "+resolution+" -crop_to_cutline -of GTiff $b "+temp_folder1+"$(basename ${b%.*}).tif; done"
-			command1 = "cp /mnt/t/disk2/pconnect/CHRSData/userFile/temp/shapes/"+id+".* "+temp_folder1
-			subprocess.Popen(command1, shell=True, executable="/bin/bash").communicate()
-			prjcmd = "cp /mnt/t/disk2/pconnect/CHRSData/projection/US.prj "+temp_folder1+id+".prj"
-			#prjcmd = "cp /mnt/t/disk2/pconnect/CHRSData/projection/US.prj "+temp_folder1
-			subprocess.Popen(prjcmd, shell=True, executable="/bin/bash").communicate()
-	else:
-		resolution = '0.04'
-		if domain in ['0', '1']:
-			command = "for b in `ls "+out_file+"`; do cp "+out_file+" "+temp_folder1+" >& /dev/null; done"
-		else:
-			command = "for b in `ls "+out_file+"`; do /usr/local/epd-7.3-2-rh5-x86_64/bin/gdalwarp -overwrite -dstnodata -99 -q -cutline "+outShapefile+" -tr "+resolution+" "+resolution+" -crop_to_cutline -of GTiff $b "+temp_folder1+"$(basename ${b%.*}).tif; done"
-			command1 = "cp /mnt/t/disk2/pconnect/CHRSData/userFile/temp/shapes/"+id+".* "+temp_folder1
-			subprocess.Popen(command1, shell=True, executable="/bin/bash").communicate()
-			prjcmd = "cp /mnt/t/disk2/pconnect/CHRSData/projection/US.prj "+temp_folder1+id+".prj"
-			subprocess.Popen(prjcmd, shell=True, executable="/bin/bash").communicate()
-	subprocess.Popen(command, shell=True, executable="/bin/bash").communicate()
-	zip_name = out_file.split('_')[0]+"_"+currentDateTime
-	shutil.make_archive(zip_name, format=compression, root_dir=temp_folder1)
-else:
-	command = "for b in `ls "+out_file+"`; do /usr/local/bin/gdal_translate -of netCDF -co FORMAT=NC4 "+out_file+" "+temp_folder1+"$(basename ${b%.*}).nc; done"
-	subprocess.Popen(command, shell=True, executable="/bin/bash").communicate()
-	zip_name = out_file.split('_')[0]+"_"+currentDateTime
-	shutil.make_archive(zip_name, format=compression, root_dir=temp_folder1)
-
-shutil.rmtree(temp_folder0)
-shutil.rmtree(temp_folder1)

@@ -8,17 +8,17 @@ vrt_file = sys.argv[1]
 out_file = sys.argv[2]
 dataset = sys.argv[3]
 ds = gdal.Open(vrt_file)
-#
+
 cols = ds.RasterXSize
 rows = ds.RasterYSize
 
 #write tiff file
 driver = gdal.GetDriverByName('GTiff')
 if dataset == 'CDR':
-	outDataset = driver.Create(out_file, cols, rows, 1, gdal.GDT_Float32)
+	outDataset = driver.Create(out_file, cols, rows, 1, gdal.GDT_Float32, ['COMPRESS=LZW'])
 	type = np.float32
 elif dataset in ['CCS', 'PERSIANN']:
-	outDataset = driver.Create(out_file, cols, rows, 1, gdal.GDT_Int16)
+	outDataset = driver.Create(out_file, cols, rows, 1, gdal.GDT_Int16, ['COMPRESS=LZW'])
 	type = np.int16
 #projection
 geoTransform = ds.GetGeoTransform()
