@@ -3,8 +3,10 @@
 from datetime import datetime
 import os
 import ogr
+import gdal
 import sys
 import shutil
+from netCDF4 import Dataset
 import numpy as np
 import multiprocessing
 import itertools
@@ -239,13 +241,52 @@ else:
 		print 'done'
 if file_type == 'Tif':
 	os.system("cp "+temp_folder0+os.path.splitext(os.path.basename(out_file))[0]+".tif "+out_file)
+	zip_name = out_file.split('_')[0]+"_"+currentDateTime+'.'+compression
+	with ZipFile(zip_name, 'w') as myzip:
+		myzip.write(out_file, os.path.basename(out_file))
 elif file_type == 'ArcGrid':
 	if dataset1 == 'CDR':
 		AscFormatFloat([temp_folder0+os.path.splitext(os.path.basename(out_file))[0]+".tif", out_file])
 	elif dataset1 in ['PERSIANN', 'CCS']:
 		AscFormat([temp_folder0+os.path.splitext(os.path.basename(out_file))[0]+".tif", out_file])
-
-zip_name = out_file.split('_')[0]+"_"+currentDateTime+'.'+compression
-with ZipFile(zip_name, 'w') as myzip:
-	myzip.write(out_file, os.path.basename(out_file))
-
+	zip_name = out_file.split('_')[0]+"_"+currentDateTime+'.'+compression
+	with ZipFile(zip_name, 'w') as myzip:
+		myzip.write(out_file, os.path.basename(out_file))
+elif file_type == 'NetCDF':
+	ds = gdal.Open(temp_folder0+os.path.splitext(os.path.basename(out_file))[0]+".tif")
+	a = ds.ReadAsArray()
+	nlat,nlon = np.shape(a)
+	b = ds.GetGeoTransform() #bbox, interval
+	lon = np.arange(nlon)*b[1]+b[0]
+	lat = np.arange(nlat)*b[5]+b[3]
+	#create netCDF file
+	nco = Dataset(out_file,'w',clobber=True)
+	chunk_lon=16
+	chunk_lat=16
+	chunk_time=12
+	# create dimensions, variables and attributes:
+	nco.createDimension('lon',nlon)
+	nco.createDimension('lat',nlat)
+	nco.createDimension('filename',None)
+	filenameo = nco.createVariable('filename','i4',('filename'))
+	filenameo[:] = [int(re.findall('\d+', os.path.basename(fi))[-1]) for fi in sorted(glob.glob(tmp_f+'*.*'))]
+	lono = nco.createVariable('lon','f4',('lon'))
+	lato = nco.createVariable('lat','f4',('lat'))
+	# create container variable for CRS: lon/lat WGS84 datum
+	crso = nco.createVariable('crs','i4')
+	crso.long_name = 'Lon/Lat Coords in WGS84'
+	crso.grid_mapping_name='latitude_longitude'
+	crso.longitude_of_prime_meridian = 0.0
+	crso.semi_major_axis = 6378137.0
+	crso.inverse_flattening = 298.257223563
+	# create short float variable for precipitation data, with chunking
+	tmno = nco.createVariable('precip', dtype,  ('filename', 'lat', 'lon'), 
+	zlib=True,chunksizes=[chunk_time,chunk_lat,chunk_lon],fill_value=-99, least_significant_digit=2)
+	tmno.grid_mapping = 'crs'
+	tmno.set_auto_maskandscale(False)
+	nco.Conventions='CF-1.6'
+	#write lon,lat
+	lono[:]=lon
+	lato[:]=lat
+	#write data
+	tmno[:,:,:] = ds.ReadAsArray()

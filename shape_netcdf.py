@@ -101,17 +101,6 @@ b = ds.GetGeoTransform() #bbox, interval
 lon = np.arange(nlon)*b[1]+b[0]
 lat = np.arange(nlat)*b[5]+b[3]
 
-#convert to netcdf
-file1 = sorted(glob.glob(tmp_f+'*.*'))[0]
-
-ds = gdal.Open(file1)
-a = ds.ReadAsArray()
-nlat,nlon = np.shape(a)
-b = ds.GetGeoTransform() #bbox, interval
-lon = np.arange(nlon)*b[1]+b[0]
-lat = np.arange(nlat)*b[5]+b[3]
-
-
 #create netCDF file
 nco = Dataset(outfile,'w',clobber=True)
 
