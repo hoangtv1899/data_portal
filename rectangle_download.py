@@ -6,7 +6,6 @@ import shutil
 import multiprocessing
 import itertools
 from asc_format_ccs1 import AscFormat
-from asc_format1 import AscFormatFloat
 
 curr_str = sys.argv[1]
 ulx = sys.argv[2]
@@ -56,11 +55,11 @@ if dataset == 'CDR':
 	resolution = '0.25'
 	lat = 60
 	if len(date_start) == 8:
-		path_to_file = "/mnt/p/diske/rainsphere/cdr/daily_asc/CDR_{"+date_start+".."+date_end+"}z.asc 2>/dev/null"
+		path_to_file = "/mnt/t/disk3/CHRSdata/Persiann_CDR/daily/CDR_{"+date_start+".."+date_end+"}z.tif 2>/dev/null"
 	elif len(date_start) == 6:
-		path_to_file = "/mnt/p/diske/rainsphere/cdr/monthly_asc/CDR_{"+date_start+".."+date_end+"}.asc 2>/dev/null"
+		path_to_file = "/mnt/t/disk3/CHRSdata/Persiann_CDR/monthly/CDR_{"+date_start+".."+date_end+"}.tif 2>/dev/null"
 	elif len(date_start) == 4:
-		path_to_file = "/mnt/p/diske/rainsphere/cdr/yearly_asc/CDR_{"+date_start+".."+date_end+"}.asc 2>/dev/null"	
+		path_to_file = "/mnt/t/disk3/CHRSdata/Persiann_CDR/yearly/CDR_{"+date_start+".."+date_end+"}.tif 2>/dev/null"	
 elif dataset in ['CCS', 'PERSIANN']:
 	lat = 60
 	if dataset == 'CCS':
@@ -82,23 +81,23 @@ if float(ulx) <= float(lrx):
 	lrx_arr = itertools.repeat(lrx, len(list_file))
 	if file_type == 'Tif':
 		list_dest_file = [temp_folder0+os.path.splitext(os.path.basename(file2))[0]+'.tif' for file2 in list_file]
-		if dataset == 'CDR':
+		if dataset in ['CDR', 'PERSIANN']:
 			TypeArray = ['Float32']* len(list_file)
-			pool.map(ClipRaster, itertools.izip(ulx_arr, uly_arr, lrx_arr, lry_arr, list_file, list_dest_file, TypeArray))
-		else:
+		elif dataset == 'CCS':
 			TypeArray = ['Int16']* len(list_file)
-			pool.map(ClipRaster, itertools.izip(ulx_arr, uly_arr, lrx_arr, lry_arr, list_file, list_dest_file, TypeArray))
+		pool.map(ClipRaster, itertools.izip(ulx_arr, uly_arr, lrx_arr, lry_arr, list_file, list_dest_file, TypeArray))
 	elif file_type == 'ArcGrid':
 		list_dest_file1 = [temp_folder01+os.path.splitext(os.path.basename(file2))[0]+'.tif' for file2 in list_file]
 		list_dest_file = [temp_folder0+os.path.splitext(os.path.basename(file2))[0]+'.asc' for file2 in list_file]
-		if dataset == 'CDR':
+		dataset_arr = itertools.repeat(dataset, len(list_dest_file))
+		if dataset in ['CDR', 'PERSIANN']:
 			TypeArray = ['Float32']* len(list_file)
 			pool.map(ClipRaster, itertools.izip(ulx_arr, uly_arr, lrx_arr, lry_arr, list_file,list_dest_file1, TypeArray))
-			pool.map(AscFormatFloat, itertools.izip(list_dest_file1, list_dest_file))
-		elif dataset in ['PERSIANN', 'CCS']:
+			pool.map(AscFormat, itertools.izip(list_dest_file1, list_dest_file, dataset_arr))
+		elif dataset == 'CCS':
 			TypeArray = ['Int16']* len(list_file)
 			pool.map(ClipRaster, itertools.izip(ulx_arr, uly_arr, lrx_arr, lry_arr, list_file,list_dest_file1, TypeArray))
-			pool.map(AscFormat, itertools.izip(list_dest_file1, list_dest_file))
+			pool.map(AscFormat, itertools.izip(list_dest_file1, list_dest_file, dataset_arr))
 else:
 	lrx1 = float(lrx) + 360
 	lrx1 = str(lrx1)
@@ -114,13 +113,13 @@ else:
 	XE = ['180']* len(list_file)
 	XW = ['-180']* len(list_file)
 	temp_folder1 = '../userFile/temp/188'+curr_str+'/'
-	if dataset == 'CDR':
+	if dataset in ['CDR', 'PERSIANN']:
 		TypeArray = ['Float32']* len(list_file)
 		list_temp_file1 = [temp_folder1+os.path.splitext(os.path.basename(file2))[0]+'.tif' for file2 in list_file]
 		list_temp_file2 = [temp_folder1+os.path.splitext(os.path.basename(file2))[0]+'_2.tif' for file2 in list_file]
 		pool.map(ClipRaster, itertools.izip(ulx_arr, uly_arr, XE, lry_arr, list_file,list_temp_file1, TypeArray))
 		pool.map(ClipRaster, itertools.izip(XW, uly_arr, lrx_arr, lry_arr, list_file,list_temp_file2, TypeArray))
-	elif dataset in ['PERSIANN', 'CCS']:
+	elif dataset == 'CCS':
 		TypeArray = ['Int16']* len(list_file)
 		list_temp_file1 = [temp_folder1+os.path.splitext(os.path.basename(file2))[0]+'.tif' for file2 in list_file]
 		list_temp_file2 = [temp_folder1+os.path.splitext(os.path.basename(file2))[0]+'_2.tif' for file2 in list_file]
@@ -134,9 +133,7 @@ else:
 		list_dest_file1 = [temp_folder01+os.path.splitext(os.path.basename(file2))[0]+'.tif' for file2 in list_file]
 		list_dest_file = [temp_folder0+os.path.splitext(os.path.basename(file2))[0]+'.asc' for file2 in list_file]
 		pool.map(MergeRaster, itertools.izip(list_temp_file1, list_temp_file2, list_dest_file1))
-		if dataset == 'CDR':
-			pool.map(AscFormatFloat, itertools.izip(list_dest_file1, list_dest_file))
-		elif dataset in ['PERSIANN', 'CCS']:
-			pool.map(AscFormat, itertools.izip(list_dest_file1, list_dest_file))
+		dataset_arr = itertools.repeat(dataset, len(list_dest_file))
+		pool.map(AscFormat, itertools.izip(list_dest_file1, list_dest_file, dataset_arr))
 shutil.make_archive(outfile, format=compression, root_dir=temp_folder0) 
 

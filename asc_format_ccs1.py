@@ -9,6 +9,7 @@ import os
 def AscFormat(args):
 	fileIn = args[0]
 	fileOut = args[1]
+	dataset = args[2]
 	filename, file_extension = os.path.splitext(fileIn)
 	if file_extension == '.asc':
 		b = open(fileIn).readlines()
@@ -34,12 +35,20 @@ def AscFormat(args):
 	header += "yllcorner %.3f\n" % yllcor
 	header += "cellsize %.2f\n" % cell
 	header += "NODATA_value -99\n"
-
-	array = array.astype(np.int16)
-	#Save the newly created asc file
-	f = open(fileOut, "w")
-	f.write(header)
-	np.savetxt(f, array, fmt="%d")
-	f.close()
+	
+	if dataset == 'CCS':
+		array = array.astype(np.int16)
+		#Save the newly created asc file
+		f = open(fileOut, "w")
+		f.write(header)
+		np.savetxt(f, array, fmt="%d")
+		f.close()
+	elif dataset in ['CDR', 'PERSIANN']:
+		array = array.astype(np.float32)
+		#Save the newly created asc file
+		f = open(fileOut, "w")
+		f.write(header)
+		np.savetxt(f, array, fmt="%.2f")
+		f.close()
 
 	zlib.compress(fileOut)

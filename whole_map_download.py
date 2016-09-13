@@ -23,11 +23,11 @@ temp_file = '/mnt/t/disk2/pconnect/CHRSData/userFile/temp.vrt'
 
 if dataset == 'CDR':
 	if len(date_start) == 8:
-		path_to_file = "/mnt/p/diske/rainsphere/cdr/daily_asc/CDR_{"+date_start+".."+date_end+"}z.asc 2>/dev/null"
+		path_to_file = "/mnt/t/disk3/CHRSdata/Persiann_CDR/daily/CDR_{"+date_start+".."+date_end+"}z.tif 2>/dev/null"
 	elif len(date_start) == 6:
-		path_to_file = "/mnt/p/diske/rainsphere/cdr/monthly_asc/CDR_{"+date_start+".."+date_end+"}.asc 2>/dev/null"
+		path_to_file = "/mnt/t/disk3/CHRSdata/Persiann_CDR/monthly/CDR_{"+date_start+".."+date_end+"}.tif 2>/dev/null"
 	elif len(date_start) == 4:
-		path_to_file = "/mnt/p/diske/rainsphere/cdr/yearly_asc/CDR_{"+date_start+".."+date_end+"}.asc 2>/dev/null"
+		path_to_file = "/mnt/t/disk3/CHRSdata/Persiann_CDR/yearly/CDR_{"+date_start+".."+date_end+"}.tif 2>/dev/null"
 elif dataset in ['CCS', 'PERSIANN']:
 	if dataset == 'CCS':
 		bpath = "/mnt/t/disk3/CHRSdata/Persiann_CCS/"
@@ -37,17 +37,12 @@ elif dataset in ['CCS', 'PERSIANN']:
 	
 pool = multiprocessing.Pool(processes = 4)
 if file_type == 'ArcGrid':
-	if dataset == 'CDR':
-		os.system("for b in `ls "+path_to_file+"`; do cp $b "+temp_folder0+"$(basename ${b%.*}).asc; done")
-	elif dataset in ['CCS', 'PERSIANN']:
-		list_file = [file1.replace('\n','') for file1 in os.popen('ls '+path_to_file).readlines()]
-		list_dest_file = [temp_folder0+os.path.splitext(os.path.basename(file2))[0]+'.asc' for file2 in list_file]
-		pool.map(AscFormat, itertools.izip(list_file, list_dest_file))
+	list_file = [file1.replace('\n','') for file1 in os.popen('ls '+path_to_file).readlines()]
+	dataset_arr = itertools.repeat(dataset, len(list_file))
+	list_dest_file = [temp_folder0+os.path.splitext(os.path.basename(file2))[0]+'.asc' for file2 in list_file]
+	pool.map(AscFormat, itertools.izip(list_file, list_dest_file, dataset_arr))
 	shutil.make_archive(outfile, format=compression, root_dir=temp_folder0)
 elif file_type == 'Tif':
-	if dataset == 'CDR':
-		os.system("for b in `ls "+path_to_file+"`; do /usr/local/epd-7.2-2-rh5-x86_64/bin/gdal_translate -a_nodata -99 -of GTiff $b "+temp_folder0+"$(basename ${b%.*}).tif -co COMPRESS=LZW >& /dev/null; done")
-	else:
-		os.system("for b in `ls "+path_to_file+"`; do /usr/local/epd-7.2-2-rh5-x86_64/bin/gdal_translate -a_nodata -99 -of GTiff $b "+temp_folder0+"$(basename ${b%.*}).tif -co COMPRESS=LZW >& /dev/null; done")
+	os.system("for b in `ls "+path_to_file+"`; cp $b "+temp_folder0+"$(basename ${b%.*}).tif; done")
 	shutil.make_archive(outfile, format=compression, root_dir=temp_folder0)
  

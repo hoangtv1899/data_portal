@@ -4,6 +4,7 @@ from datetime import date, timedelta, datetime
 import os
 import sys
 import subprocess
+import math
 import shutil
 from osgeo import gdal
 from ShapeSelection import ShapeSelection
@@ -75,17 +76,22 @@ else:	#shape and rectangle
 		timestepM = ''
 		timestepY = ''
 		base_path = '/mnt/t/disk3/CHRSdata/Persiann_CDR/'
+		resolution = '0.25'
 		if br_dwn[1] == 'rec':
 			ulx = br_dwn[2]
 			uly = br_dwn[3]
 			lrx = br_dwn[4]
 			lry = br_dwn[5]
+			ulx = str(math.ceil(float(ulx)/float(resolution))*float(resolution))
+			uly = str(math.floor(float(uly)/float(resolution))*float(resolution))
+			lrx = str(math.floor(float(lrx)/float(resolution))*float(resolution))
+			lry = str(math.ceil(float(lry)/float(resolution))*float(resolution))
 		elif br_dwn[1] == 'shp':
 			shapefile = br_dwn[2]
 			loc = br_dwn[3]
 			loc = loc[1:-1].split(",")
 			# Save extent to a new Shapefile
-			outShapefile = ShapeSelection(loc, shapefile, '/mnt/t/disk2/pconnect/CHRSData/userFile/'+userIP+'/tempShapeAcc')
+			outShapefile = ShapeSelection(loc, shapefile, '/mnt/t/disk2/pconnect/CHRSData/userFile/'+userIP+'/tempShapeAcc/')
 	elif br_dwn[0] in ['CCS', 'PERSIANN']:
 		timestepH = '1h'
 		timestepD = '1d'
@@ -93,8 +99,10 @@ else:	#shape and rectangle
 		timestepY = '1y'
 		if br_dwn[0] == 'PERSIANN':
 			base_path = '/mnt/t/disk3/CHRSdata/Persiann/'
+			resolution = '0.25'
 		elif br_dwn[0] == 'CCS':
 			base_path = '/mnt/t/disk3/CHRSdata/Persiann_CCS/'
+			resolution = '0.04'
 		#add hour to list from CCS and PERSIANN
 		for i in hour_list:
 			i_time = datetime.strptime(i, '%y%m%d%H')
@@ -104,12 +112,16 @@ else:	#shape and rectangle
 			uly = br_dwn[3]
 			lrx = br_dwn[4]
 			lry = br_dwn[5]
+			ulx = str(math.ceil(float(ulx)/float(resolution))*float(resolution))
+			uly = str(math.floor(float(uly)/float(resolution))*float(resolution))
+			lrx = str(math.floor(float(lrx)/float(resolution))*float(resolution))
+			lry = str(math.ceil(float(lry)/float(resolution))*float(resolution))
 		elif br_dwn[1] == 'shp':
 			shapefile = br_dwn[2]
 			loc = br_dwn[3]
 			loc = loc[1:-1].split(",")
 			# Save extent to a new Shapefile
-			outShapefile = ShapeSelection(loc, shapefile, '/mnt/t/disk2/pconnect/CHRSData/userFile/'+userIP+'/tempShapeAcc')
+			outShapefile = ShapeSelection(loc, shapefile, '/mnt/t/disk2/pconnect/CHRSData/userFile/'+userIP+'/tempShapeAcc/')
 	dataset1 = br_dwn[0]
 
 for j in day_list:
@@ -124,7 +136,7 @@ for l in year_list:
 	l_time = datetime.strptime(l, '%y')
 	date_list.append(dataset1+'_'+timestepY+l_time.strftime('%Y')+'.tif')
 
-print date_list
+#print date_list
 	
 file_list = []
 for root, dirs, files in os.walk(base_path):
@@ -152,7 +164,7 @@ else:
 			lry = '-60' if float(lry) < -60 else lry
 			cmd0 = "for b in "+' '.join(sorted(file_list))+"; do echo 'processing '$b; /usr/local/epd-7.2-2-rh5-x86_64/bin/gdal_translate -a_nodata -99 -projwin "+ulx+" "+uly+" "+lrx+" "+lry+" -of GTiff $b "+temp_folder0+"$(basename ${b%.*}).tif -co COMPRESS=LZW; done"
 			subprocess.call(cmd0, shell=True, executable="/bin/bash" )
-			cmd = "b='/mnt/t/disk2/pconnect/CHRSData/userFile/sample_tif_files/"+userIP+".vrt'; k='/mnt/t/disk2/pconnect/CHRSData/userFile/sample_tif_files/"+userIP+".tif'; h='"+out_file+"'; /usr/local/epd-7.2-2-rh5-x86_64/bin/gdalbuildvrt -separate $b "+temp_folder0+"*.tif; /mnt/t/disk2/pconnect/CHRSData/python/sum_raster.py $b $k; /usr/local/epd-7.2-2-rh5-x86_64/bin/gdal_translate -of GTiff -co COMPRESS=LZW $k $h; rm $b $k 2>/dev/null"
+			cmd = "b='/mnt/t/disk2/pconnect/CHRSData/userFile/sample_tif_files/"+userIP+".vrt'; k='/mnt/t/disk2/pconnect/CHRSData/userFile/sample_tif_files/"+userIP+".tif'; h='"+out_file+"'; /usr/local/epd-7.2-2-rh5-x86_64/bin/gdalbuildvrt -separate $b "+temp_folder0+"*.tif; /mnt/t/disk2/pconnect/CHRSData/python/sum_raster.py $b $k "+br_dwn[0]+"; /usr/local/epd-7.2-2-rh5-x86_64/bin/gdal_translate -of GTiff -co COMPRESS=LZW $k $h; rm $b $k 2>/dev/null"
 			subprocess.call(cmd, shell=True, executable="/bin/bash" )
 			print 'done'
 		else:
@@ -176,13 +188,14 @@ else:
 	elif br_dwn[1] == 'shp':
 		cmd0 = "for b in "+' '.join(sorted(file_list))+"; do /usr/local/epd-7.3-2-rh5-x86_64/bin/gdalwarp -overwrite -dstnodata -99 -q -cutline "+outShapefile+" -of GTiff $b "+temp_folder0+"$(basename ${b%.*}).tif -co COMPRESS=LZW; done"
 		subprocess.call(cmd0, shell=True, executable="/bin/bash" )
-		cmd = "b='/mnt/t/disk2/pconnect/CHRSData/userFile/sample_tif_files/"+userIP+".vrt'; k='/mnt/t/disk2/pconnect/CHRSData/userFile/sample_tif_files/"+userIP+".tif'; h='"+out_file+"'; /usr/local/epd-7.2-2-rh5-x86_64/bin/gdalbuildvrt -separate $b "+temp_folder0+"*.tif; /mnt/t/disk2/pconnect/CHRSData/python/sum_raster.py $b $k; /usr/local/epd-7.2-2-rh5-x86_64/bin/gdal_translate -of GTiff -co COMPRESS=LZW $k $h; rm $b $k 2>/dev/null"
+		cmd = "b='/mnt/t/disk2/pconnect/CHRSData/userFile/sample_tif_files/"+userIP+".vrt'; k='/mnt/t/disk2/pconnect/CHRSData/userFile/sample_tif_files/"+userIP+".tif'; h='"+out_file+"'; /usr/local/epd-7.2-2-rh5-x86_64/bin/gdalbuildvrt -separate $b "+temp_folder0+"*.tif; /mnt/t/disk2/pconnect/CHRSData/python/sum_raster.py $b $k "+br_dwn[0]+"; /usr/local/epd-7.2-2-rh5-x86_64/bin/gdal_translate -of GTiff -co COMPRESS=LZW $k $h; rm $b $k 2>/dev/null"
 		subprocess.call(cmd, shell=True, executable="/bin/bash" )
 		print 'done'
 	shutil.rmtree(temp_folder0)
 im = gdal.Open(out_file)
 array = im.ReadAsArray()
-array = np.ma.masked_where(array == -99, array)
+#array = np.ma.masked_where(array == -99, array) #this will show median as nan
+array = array[array != -99]
 print "max: %.2f" % array.max()
 print "min: %.2f" % array.min()
 print "mean: %.2f" % array.mean()

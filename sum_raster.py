@@ -14,12 +14,13 @@ rows = ds.RasterYSize
 
 #write tiff file
 driver = gdal.GetDriverByName('GTiff')
-if dataset == 'CDR':
+if dataset in ['CDR', 'PERSIANN']:
 	outDataset = driver.Create(out_file, cols, rows, 1, gdal.GDT_Float32, ['COMPRESS=LZW'])
 	type = np.float32
-elif dataset in ['CCS', 'PERSIANN']:
+elif dataset == 'CCS':
 	outDataset = driver.Create(out_file, cols, rows, 1, gdal.GDT_Int16, ['COMPRESS=LZW'])
 	type = np.int16
+	
 #projection
 geoTransform = ds.GetGeoTransform()
 outDataset.SetGeoTransform(geoTransform )

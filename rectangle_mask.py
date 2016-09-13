@@ -62,8 +62,8 @@ else:
 	os.remove(temp_file1)
 	os.remove(temp_file2)
 	os.remove(temp_file3)
-im = Image.open(outfile)
-array = np.array(im)
+im = gdal.Open(outfile)
+array = im.ReadAsArray()
 array = array[array != -99]
 print "max: %.2f" % array.max()
 print "min: %.2f" % array.min()

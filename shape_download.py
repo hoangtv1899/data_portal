@@ -9,7 +9,6 @@ import numpy as np
 import multiprocessing
 import itertools
 from ShapeSelection import ShapeSelection
-from asc_format1 import AscFormatFloat
 from asc_format_ccs1 import AscFormat
 
 def ClipRaster(args):
@@ -20,7 +19,7 @@ def ClipRaster(args):
 	dest_file = args[4]
 	dtype = args[5]
 	os.system("/usr/local/epd-7.3-2-rh5-x86_64/bin/gdalwarp -overwrite -dstnodata -99 -q -cutline "+outShapefile+" -tr "+resolution+" "+resolution+" -te "+p1+" -of GTiff -ot "+dtype+" "+fileIn+" "+dest_file)
-	
+
 #inputs
 curr_str = sys.argv[1]
 loc = sys.argv[2]
@@ -41,15 +40,16 @@ except IndexError:
 tmp_f = '../userFile/temp/'+curr_str+'/'
 tmp_f1 = '../userFile/temp/199'+curr_str+'/'
 tmp_shp = '../userFile/temp/shp_'+curr_str+'/'
+
 #check dataset
 if dataset == 'CDR':
 	resolution = '0.25'
 	if len(date_start) == 8:
-		path_to_file = "/mnt/p/diske/rainsphere/cdr/daily_asc/CDR_{"+date_start+".."+date_end+"}z.asc 2>/dev/null"
+		path_to_file = "/mnt/t/disk3/CHRSdata/Persiann_CDR/daily/CDR_{"+date_start+".."+date_end+"}z.tif 2>/dev/null"
 	elif len(date_start) == 6:
-		path_to_file = "/mnt/p/diske/rainsphere/cdr/monthly_asc/CDR_{"+date_start+".."+date_end+"}.asc 2>/dev/null"
+		path_to_file = "/mnt/t/disk3/CHRSdata/Persiann_CDR/monthly/CDR_{"+date_start+".."+date_end+"}.tif 2>/dev/null"
 	elif len(date_start) == 4:
-		path_to_file = "/mnt/p/diske/rainsphere/cdr/yearly_asc/CDR_{"+date_start+".."+date_end+"}.asc 2>/dev/null"
+		path_to_file = "/mnt/t/disk3/CHRSdata/Persiann_CDR/yearly/CDR_{"+date_start+".."+date_end+"}.tif 2>/dev/null"
 elif dataset in ['CCS', 'PERSIANN']:
 	if dataset == 'CCS':
 		resolution = '0.04'
@@ -81,26 +81,26 @@ ResArray = itertools.repeat(resolution, len(list_file))
 CoorArray = itertools.repeat(' '.join(p1), len(list_file))
 if file_type == 'Tif':
 	list_dest_file = [tmp_f+os.path.splitext(os.path.basename(file2))[0]+'.tif' for file2 in list_file]
-	if dataset == 'CDR':
+	if dataset in ['CDR', 'PERSIANN']:
 		TypeArray = itertools.repeat('Float32', len(list_file))
 		pool.map(ClipRaster, itertools.izip(list_file, ShapeArray, ResArray, CoorArray,list_dest_file, TypeArray))
-	elif dataset in ['PERSIANN', 'CCS']:
+	elif dataset == 'CCS':
 		TypeArray = itertools.repeat('Int16', len(list_file))
 		pool.map(ClipRaster, itertools.izip(list_file, ShapeArray, ResArray, CoorArray,list_dest_file, TypeArray))
 elif file_type == 'ArcGrid':
 	list_dest_file1 = [tmp_f1+os.path.splitext(os.path.basename(file2))[0]+'.tif' for file2 in list_file]
 	list_dest_file = [tmp_f+os.path.splitext(os.path.basename(file2))[0]+'.asc' for file2 in list_file]
-	if dataset == 'CDR':
+	if dataset in ['CDR', 'PERSIANN']:
 		TypeArray = itertools.repeat('Float32', len(list_file))
 		pool.map(ClipRaster, itertools.izip(list_file, ShapeArray, ResArray, CoorArray,list_dest_file1, TypeArray))
-		pool.map(AscFormatFloat, itertools.izip(list_dest_file1, list_dest_file))
-	elif dataset in ['PERSIANN', 'CCS']:
+	elif dataset =='CCS':
 		TypeArray = itertools.repeat('Int16', len(list_file))
 		pool.map(ClipRaster, itertools.izip(list_file, ShapeArray, ResArray, CoorArray,list_dest_file1, TypeArray))
-		pool.map(AscFormat, itertools.izip(list_dest_file1, list_dest_file))
+	dataset_arr = itertools.repeat(dataset, len(list_dest_file))
+	pool.map(AscFormat, itertools.izip(list_dest_file1, list_dest_file, dataset_arr))
 	shutil.rmtree(tmp_f1)
 
-for file in glob.iglob(outShapefile.split(".")[0]+".*"):
+for file in glob.iglob(outShapefile[:-4]+".*"):
 	shutil.copy(file, tmp_f)
 
 shutil.make_archive(outfile, format=compression, root_dir=tmp_f)

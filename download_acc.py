@@ -5,7 +5,9 @@ import os
 import ogr
 import gdal
 import sys
+import re
 import shutil
+import math
 from netCDF4 import Dataset
 import numpy as np
 import multiprocessing
@@ -13,7 +15,6 @@ import itertools
 from zipfile import ZipFile
 from ShapeSelection import ShapeSelection
 from asc_format_ccs1 import AscFormat
-from asc_format1 import AscFormatFloat
 
 def find_between( s, first, last ):
     try:
@@ -55,6 +56,11 @@ def ClipRasterShape(args):
 	dest_file = args[4]
 	os.system("/usr/local/epd-7.3-2-rh5-x86_64/bin/gdalwarp -overwrite -dstnodata -99 -q -cutline "+outShapefile+" -tr "+resolution+" "+resolution+" -te "+p1+" -of GTiff -ot Float32 "+fileIn+" "+dest_file)
 	
+def DownloadShape():
+	myzip.write(outShapefile[:-4]+".shp", os.path.basename(outShapefile)[:-4]+".shp")
+	myzip.write(outShapefile[:-4]+".shx", os.path.basename(outShapefile)[:-4]+".shx")
+	myzip.write(outShapefile[:-4]+".dbf", os.path.basename(outShapefile)[:-4]+".dbf")
+	
 out_file = sys.argv[1]
 dataset = sys.argv[2]
 userIP = sys.argv[3]
@@ -91,6 +97,7 @@ temp_folder01 = '../userFile/temp/199'+currentDateTime+'/'
 
 date_list = []
 if dataset == 'CDR':
+	dtype = 'f4'
 	dataset1 = dataset
 	timestepH = ''
 	timestepD = ''
@@ -104,8 +111,10 @@ elif dataset in ['CCS', 'PERSIANN']:
 	timestepM = '1m'
 	timestepY = '1y'
 	if dataset == 'PERSIANN':
+		dtype = 'f4'
 		base_path = '/mnt/t/disk3/CHRSdata/Persiann/'
 	elif dataset == 'CCS':
+		dtype = 'i2'
 		base_path = '/mnt/t/disk3/CHRSdata/Persiann_CCS/'
 	#add hour to list from CCS and PERSIANN
 	for i in hour_list:
@@ -115,6 +124,7 @@ else:	#shape and rectangle
 	br_dwn = dataset.split(' ')
 	dataset1 = br_dwn[0]
 	if dataset1 == 'CDR':
+		dtype = 'f4'
 		resolution = '0.25'
 		timestepH = ''
 		timestepD = ''
@@ -126,6 +136,10 @@ else:	#shape and rectangle
 			uly = br_dwn[3]
 			lrx = br_dwn[4]
 			lry = br_dwn[5]
+			ulx = str(math.ceil(float(ulx)/float(resolution))*float(resolution))
+			uly = str(math.floor(float(uly)/float(resolution))*float(resolution))
+			lrx = str(math.floor(float(lrx)/float(resolution))*float(resolution))
+			lry = str(math.ceil(float(lry)/float(resolution))*float(resolution))
 		elif br_dwn[1] == 'shp':
 			shapefile = br_dwn[2]
 			loc = br_dwn[3]
@@ -147,9 +161,11 @@ else:	#shape and rectangle
 		timestepM = '1m'
 		timestepY = '1y'
 		if dataset1 == 'PERSIANN':
+			dtype = 'f4'
 			resolution = '0.25'
 			base_path = '/mnt/t/disk3/CHRSdata/Persiann/'
 		elif dataset1 == 'CCS':
+			dtype = 'i2'
 			resolution = '0.04'
 			base_path = '/mnt/t/disk3/CHRSdata/Persiann_CCS/'
 		#add hour to list from CCS and PERSIANN
@@ -161,6 +177,10 @@ else:	#shape and rectangle
 			uly = br_dwn[3]
 			lrx = br_dwn[4]
 			lry = br_dwn[5]
+			ulx = str(math.ceil(float(ulx)/float(resolution))*float(resolution))
+			uly = str(math.floor(float(uly)/float(resolution))*float(resolution))
+			lrx = str(math.floor(float(lrx)/float(resolution))*float(resolution))
+			lry = str(math.ceil(float(lry)/float(resolution))*float(resolution))
 		elif br_dwn[1] == 'shp':
 			shapefile = br_dwn[2]
 			loc = br_dwn[3]
@@ -196,11 +216,10 @@ for root, dirs, files in os.walk(base_path):
 
 #print file_list
 #DO THE ACCUMULATION
-
 pool = multiprocessing.Pool(processes = 4)
 if dataset in ['CCS', 'CDR', 'PERSIANN']:
 	os.system("b='"+temp_folder0+userIP+".vrt'; h='"+temp_folder0+os.path.splitext(os.path.basename(out_file))[0]+".tif'; /usr/local/epd-7.2-2-rh5-x86_64/bin/gdalbuildvrt -separate $b "+' '.join(sorted(file_list))+"; /mnt/t/disk2/pconnect/CHRSData/python/sum_raster.py $b $h "+dataset1+"; rm $b 2>/dev/null")
-	print 'done'	
+	print 'done'
 else:
 	dataset1 = dataset.split(' ')[0]
 	if br_dwn[1] == 'rec':
@@ -244,32 +263,46 @@ if file_type == 'Tif':
 	zip_name = out_file.split('_')[0]+"_"+currentDateTime+'.'+compression
 	with ZipFile(zip_name, 'w') as myzip:
 		myzip.write(out_file, os.path.basename(out_file))
+		if dataset not in ['CCS', 'CDR', 'PERSIANN']:
+			if br_dwn[1] == 'shp':
+				DownloadShape()
 elif file_type == 'ArcGrid':
-	if dataset1 == 'CDR':
-		AscFormatFloat([temp_folder0+os.path.splitext(os.path.basename(out_file))[0]+".tif", out_file])
-	elif dataset1 in ['PERSIANN', 'CCS']:
-		AscFormat([temp_folder0+os.path.splitext(os.path.basename(out_file))[0]+".tif", out_file])
+	out_file = out_file[:-4]+".asc"
+	AscFormat([temp_folder0+os.path.splitext(os.path.basename(out_file))[0]+".tif", out_file, dataset1])
 	zip_name = out_file.split('_')[0]+"_"+currentDateTime+'.'+compression
 	with ZipFile(zip_name, 'w') as myzip:
 		myzip.write(out_file, os.path.basename(out_file))
+		if dataset not in ['CCS', 'CDR', 'PERSIANN']:
+			if br_dwn[1] == 'shp':
+				DownloadShape()
 elif file_type == 'NetCDF':
+	out_file = out_file[:-4]+".nc"
 	ds = gdal.Open(temp_folder0+os.path.splitext(os.path.basename(out_file))[0]+".tif")
 	a = ds.ReadAsArray()
 	nlat,nlon = np.shape(a)
 	b = ds.GetGeoTransform() #bbox, interval
 	lon = np.arange(nlon)*b[1]+b[0]
 	lat = np.arange(nlat)*b[5]+b[3]
+	cell = b[1]
+	xllcor = b[0]
+	yllcor = b[3] + nlon*b[4] + nlat*b[5]
+	#create info file
+	file_info = open(temp_folder0+'info.txt', 'w')
+	file_info.write("ncols     %s\n" % nlon)
+	file_info.write("nrows    %s\n" % nlat)
+	file_info.write("xllcorner %.3f\n" % xllcor)
+	file_info.write("yllcorner %.3f\n" % yllcor)
+	file_info.write("cellsize %.2f\n" % cell)
+	file_info.write("NODATA_value -99\n")
+	file_info.close()
 	#create netCDF file
 	nco = Dataset(out_file,'w',clobber=True)
 	chunk_lon=16
 	chunk_lat=16
-	chunk_time=12
 	# create dimensions, variables and attributes:
 	nco.createDimension('lon',nlon)
 	nco.createDimension('lat',nlat)
 	nco.createDimension('filename',None)
-	filenameo = nco.createVariable('filename','i4',('filename'))
-	filenameo[:] = [int(re.findall('\d+', os.path.basename(fi))[-1]) for fi in sorted(glob.glob(tmp_f+'*.*'))]
 	lono = nco.createVariable('lon','f4',('lon'))
 	lato = nco.createVariable('lat','f4',('lat'))
 	# create container variable for CRS: lon/lat WGS84 datum
@@ -280,8 +313,7 @@ elif file_type == 'NetCDF':
 	crso.semi_major_axis = 6378137.0
 	crso.inverse_flattening = 298.257223563
 	# create short float variable for precipitation data, with chunking
-	tmno = nco.createVariable('precip', dtype,  ('filename', 'lat', 'lon'), 
-	zlib=True,chunksizes=[chunk_time,chunk_lat,chunk_lon],fill_value=-99, least_significant_digit=2)
+	tmno = nco.createVariable('precip', dtype, ('lat', 'lon'), zlib=True,chunksizes=[chunk_lat,chunk_lon])
 	tmno.grid_mapping = 'crs'
 	tmno.set_auto_maskandscale(False)
 	nco.Conventions='CF-1.6'
@@ -289,4 +321,14 @@ elif file_type == 'NetCDF':
 	lono[:]=lon
 	lato[:]=lat
 	#write data
-	tmno[:,:,:] = ds.ReadAsArray()
+	tmno[:] = a
+	nco.close()
+	zip_name = out_file.split('_')[0]+"_"+currentDateTime+'.'+compression
+	with ZipFile(zip_name, 'w') as myzip:
+		myzip.write("../python/read_netcdf/read_netcdf.py", "read_netcdf.py")
+		myzip.write("../python/read_netcdf/read_netcdf.m", "read_netcdf.m")
+		myzip.write(temp_folder0+"info.txt", "info.txt")
+		myzip.write(out_file, os.path.basename(out_file))
+		if dataset not in ['CCS', 'CDR', 'PERSIANN']:
+			if br_dwn[1] == 'shp':
+				DownloadShape()

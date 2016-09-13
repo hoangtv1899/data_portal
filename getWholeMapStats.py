@@ -4,13 +4,16 @@ import subprocess
 import os
 import sys
 from PIL import Image
+import gdal
 import numpy as np
 import ogr
 
 inputFile = sys.argv[1]
 
-im = Image.open(inputFile)
-array = np.array(im)
+#im = Image.open(inputFile)
+#array = np.array(im)
+ds = gdal.Open(inputFile)
+array = ds.ReadAsArray()
 array = array[array != -99]
 print "max: %.2f" % array.max()
 print "min: %.2f" % array.min()

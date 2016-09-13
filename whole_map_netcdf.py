@@ -4,6 +4,7 @@ import os
 import sys
 import gdal
 import shutil
+from zipfile import ZipFile
 from netCDF4 import Dataset
 import numpy as np
 import glob
@@ -14,27 +15,29 @@ date_end = sys.argv[3]
 time_step = sys.argv[4]
 dataset = sys.argv[5]
 outfile = sys.argv[6]
-timestepAlt = sys.argv[7]
+compression = sys.argv[7]
+timestepAlt = sys.argv[8]
 
 temp_folder0 = '../userFile/temp/'+curr_str+'/'
 
 if dataset == 'CDR':
 	dtype = 'f4'
 	if len(date_start) == 8:
-		path_to_file = "/mnt/p/diske/rainsphere/cdr/daily_asc/CDR_{"+date_start+".."+date_end+"}z.asc 2>/dev/null"
+		path_to_file = "/mnt/t/disk3/CHRSdata/Persiann_CDR/daily/CDR_{"+date_start+".."+date_end+"}z.tif 2>/dev/null"
 	elif len(date_start) == 6:
-		path_to_file = "/mnt/p/diske/rainsphere/cdr/monthly_asc/CDR_{"+date_start+".."+date_end+"}.asc 2>/dev/null"
+		path_to_file = "/mnt/t/disk3/CHRSdata/Persiann_CDR/monthly/CDR_{"+date_start+".."+date_end+"}.tif 2>/dev/null"
 	elif len(date_start) == 4:
-		path_to_file = "/mnt/p/diske/rainsphere/cdr/yearly_asc/CDR_{"+date_start+".."+date_end+"}.asc 2>/dev/null"
+		path_to_file = "/mnt/t/disk3/CHRSdata/Persiann_CDR/yearly/CDR_{"+date_start+".."+date_end+"}.tif 2>/dev/null"
 elif dataset in ['CCS', 'PERSIANN']:
 	if dataset == 'CCS':
 		bpath = "/mnt/t/disk3/CHRSdata/Persiann_CCS/"
+		dtype = 'i2'
 	else:
 		bpath = "/mnt/t/disk3/CHRSdata/Persiann/"
-	dtype = 'i4'
+		dtype = 'f4'
 	path_to_file = bpath+time_step+"/"+dataset+"_"+timestepAlt+"{"+date_start+".."+date_end+"}.tif 2>/dev/null"
-
-os.system("for b in `ls "+path_to_file+"`; do cp $b "+temp_folder0+"$(basename ${b%.*}).asc; done")
+print path_to_file
+os.system("for b in `ls "+path_to_file+"`; do cp $b "+temp_folder0+"$(basename ${b%.*}).tif; done")
 #convert to netcdf
 file1 = sorted(glob.glob(temp_folder0+'*.*'))[0]
 
@@ -44,7 +47,19 @@ nlat,nlon = np.shape(a)
 b = ds.GetGeoTransform() #bbox, interval
 lon = np.arange(nlon)*b[1]+b[0]
 lat = np.arange(nlat)*b[5]+b[3]
+cell = b[1]
+xllcor = b[0]
+yllcor = b[3] + nlon*b[4] + nlat*b[5]
 
+#create info file
+file_info = open(temp_folder0+'info.txt', 'w')
+file_info.write("ncols     %s\n" % nlon)
+file_info.write("nrows    %s\n" % nlat)
+file_info.write("xllcorner %.3f\n" % xllcor)
+file_info.write("yllcorner %.3f\n" % yllcor)
+file_info.write("cellsize %.2f\n" % cell)
+file_info.write("NODATA_value -99\n")
+file_info.close()
 
 #create netCDF file
 nco = Dataset(outfile,'w',clobber=True)
@@ -60,7 +75,7 @@ nco.createDimension('lon',nlon)
 nco.createDimension('lat',nlat)
 nco.createDimension('filename',None)
 filenameo = nco.createVariable('filename','S1',('filename'))
-filenameo[:] = [os.path.basename(fi) for fi in sorted(glob.glob(temp_folder0+'*.*'))]
+filenameo[:] = [os.path.basename(fi) for fi in sorted(glob.glob(temp_folder0+'*.tif'))]
 
 lono = nco.createVariable('lon','f4',('lon'))
 lato = nco.createVariable('lat','f4',('lat'))
@@ -75,7 +90,7 @@ crso.inverse_flattening = 298.257223563
 
 # create short float variable for precipitation data, with chunking
 tmno = nco.createVariable('precip', dtype,  ('filename', 'lat', 'lon'), 
-   zlib=True,chunksizes=[chunk_time,chunk_lat,chunk_lon],fill_value=-99, least_significant_digit=3)
+   zlib=True,chunksizes=[chunk_time,chunk_lat,chunk_lon])
 tmno.grid_mapping = 'crs'
 tmno.set_auto_maskandscale(False)
 
@@ -90,4 +105,11 @@ lato[:]=lat
 temp_file = '../userFile/temp/'+curr_str+'/temp.vrt'
 os.system("/usr/local/epd-7.2-2-rh5-x86_64/bin/gdalbuildvrt -separate "+temp_file+" `ls "+path_to_file+"`")
 ds = gdal.Open(temp_file)
-tmno[:,:,:] = ds.ReadAsArray()
+tmno[:] = ds.ReadAsArray()
+nco.close()
+zip_name = outfile.split('_')[0]+"_"+curr_str+'.'+compression
+with ZipFile(zip_name, 'w') as myzip:
+	myzip.write("../python/read_netcdf/read_netcdf.py", "read_netcdf.py")
+	myzip.write("../python/read_netcdf/read_netcdf.m", "read_netcdf.m")
+	myzip.write(temp_folder0+"info.txt", "info.txt")
+	myzip.write(outfile, os.path.basename(outfile))

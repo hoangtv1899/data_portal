@@ -5,6 +5,7 @@ import sys
 import gdal
 import shutil
 import ogr
+from zipfile import ZipFile
 from netCDF4 import Dataset
 import numpy as np
 import multiprocessing
@@ -41,15 +42,20 @@ def ClipRaster(args):
 	dtype = args[5]
 	os.system("/usr/local/epd-7.3-2-rh5-x86_64/bin/gdalwarp -overwrite -dstnodata -99 -q -cutline "+outShapefile+" -tr "+resolution+" "+resolution+" -te "+p1+" -of GTiff -ot "+dtype+" "+fileIn+" "+dest_file)
 
+def DownloadShape():
+	myzip.write(outShapefile[:-4]+".shp", os.path.basename(outShapefile)[:-4]+".shp")
+	myzip.write(outShapefile[:-4]+".shx", os.path.basename(outShapefile)[:-4]+".shx")
+	myzip.write(outShapefile[:-4]+".dbf", os.path.basename(outShapefile)[:-4]+".dbf")
+	
 ####Create tif files###
 if dataset == 'CDR':
 	resolution = '0.25'
 	if len(date_start) == 8:
-		path_to_file = "/mnt/p/diske/rainsphere/cdr/daily_asc/CDR_{"+date_start+".."+date_end+"}z.asc 2>/dev/null"
+		path_to_file = "/mnt/t/disk3/CHRSdata/Persiann_CDR/daily/CDR_{"+date_start+".."+date_end+"}z.tif 2>/dev/null"
 	elif len(date_start) == 6:
-		path_to_file = "/mnt/p/diske/rainsphere/cdr/monthly_asc/CDR_{"+date_start+".."+date_end+"}.asc 2>/dev/null"
+		path_to_file = "/mnt/t/disk3/CHRSdata/Persiann_CDR/monthly/CDR_{"+date_start+".."+date_end+"}.tif 2>/dev/null"
 	elif len(date_start) == 4:
-		path_to_file = "/mnt/p/diske/rainsphere/cdr/yearly_asc/CDR_{"+date_start+".."+date_end+"}.asc 2>/dev/null"
+		path_to_file = "/mnt/t/disk3/CHRSdata/Persiann_CDR/yearly/CDR_{"+date_start+".."+date_end+"}.tif 2>/dev/null"
 elif dataset in ['CCS', 'PERSIANN']:
 	if dataset == 'CCS':
 		bpath = "/mnt/t/disk3/CHRSdata/Persiann_CCS/"
@@ -82,12 +88,12 @@ ShapeArray = itertools.repeat(outShapefile, len(list_file))
 ResArray = itertools.repeat(resolution, len(list_file))
 CoorArray = itertools.repeat(' '.join(p1), len(list_file))
 list_dest_file = [tmp_f+os.path.splitext(os.path.basename(file2))[0]+'.tif' for file2 in list_file]
-if dataset == 'CDR':
-	dtype = 'Float32'
+if dataset in ['CDR', 'PERSIANN']:
+	dtype = 'f4'
 	TypeArray = itertools.repeat('Float32', len(list_file))
 	pool.map(ClipRaster, itertools.izip(list_file, ShapeArray, ResArray, CoorArray,list_dest_file, TypeArray))
-elif dataset in ['PERSIANN', 'CCS']:
-	dtype = 'Int16'
+elif dataset =='CCS':
+	dtype = 'i2'
 	TypeArray = itertools.repeat('Int16', len(list_file))
 	pool.map(ClipRaster, itertools.izip(list_file, ShapeArray, ResArray, CoorArray,list_dest_file, TypeArray))
 
@@ -100,6 +106,19 @@ nlat,nlon = np.shape(a)
 b = ds.GetGeoTransform() #bbox, interval
 lon = np.arange(nlon)*b[1]+b[0]
 lat = np.arange(nlat)*b[5]+b[3]
+cell = b[1]
+xllcor = b[0]
+yllcor = b[3] + nlon*b[4] + nlat*b[5]
+
+#create info file
+file_info = open(tmp_f+'info.txt', 'w')
+file_info.write("ncols     %s\n" % nlon)
+file_info.write("nrows    %s\n" % nlat)
+file_info.write("xllcorner %.3f\n" % xllcor)
+file_info.write("yllcorner %.3f\n" % yllcor)
+file_info.write("cellsize %.2f\n" % cell)
+file_info.write("NODATA_value -99\n")
+file_info.close()
 
 #create netCDF file
 nco = Dataset(outfile,'w',clobber=True)
@@ -114,8 +133,8 @@ chunk_time=12
 nco.createDimension('lon',nlon)
 nco.createDimension('lat',nlat)
 nco.createDimension('filename',None)
-filenameo = nco.createVariable('filename','i4',('filename'))
-filenameo[:] = [int(re.findall('\d+', os.path.basename(fi))[-1]) for fi in sorted(glob.glob(tmp_f+'*.*'))]
+filenameo = nco.createVariable('filename','S1',('filename'))
+filenameo[:] = [int(re.findall('\d+', os.path.basename(fi))[-1]) for fi in sorted(glob.glob(tmp_f+'*.tif'))]
 
 lono = nco.createVariable('lon','f4',('lon'))
 lato = nco.createVariable('lat','f4',('lat'))
@@ -128,12 +147,6 @@ crso.longitude_of_prime_meridian = 0.0
 crso.semi_major_axis = 6378137.0
 crso.inverse_flattening = 298.257223563
 
-# create short float variable for precipitation data, with chunking
-tmno = nco.createVariable('precip', dtype,  ('filename', 'lat', 'lon'), 
-   zlib=True,chunksizes=[chunk_time,chunk_lat,chunk_lon],fill_value=-99, least_significant_digit=3)
-tmno.grid_mapping = 'crs'
-tmno.set_auto_maskandscale(False)
-
 nco.Conventions='CF-1.6'
 
 #write lon,lat
@@ -144,8 +157,26 @@ lato[:]=lat
 temp_file = '../userFile/temp/'+curr_str+'/temp.vrt'
 os.system("/usr/local/epd-7.2-2-rh5-x86_64/bin/gdalbuildvrt -separate "+temp_file+" "+' '.join(list_dest_file))
 ds = gdal.Open(temp_file)
-tmno[:,:,:] = ds.ReadAsArray()
+if (len(ds.ReadAsArray().shape) == 3):
+	# create short float variable for precipitation data, with chunking
+	tmno = nco.createVariable('precip', dtype,  ('filename', 'lat', 'lon'), 
+		zlib=True,chunksizes=[chunk_time,chunk_lat,chunk_lon])
+	tmno.grid_mapping = 'crs'
+	tmno.set_auto_maskandscale(False)
+	tmno[:] = ds.ReadAsArray()
+elif (len(ds.ReadAsArray().shape) == 2):
+	# create short float variable for precipitation data, with chunking
+	tmno = nco.createVariable('precip', dtype,  ('lat', 'lon'), 
+		zlib=True,chunksizes=[chunk_lat,chunk_lon])
+	tmno.grid_mapping = 'crs'
+	tmno.set_auto_maskandscale(False)
+	tmno[:] = ds.ReadAsArray()
 
-os.remove(temp_file)
-    	
-shutil.rmtree(tmp_f)
+nco.close()
+zip_name = outfile[:-3]+'.'+compression
+with ZipFile(zip_name, 'w') as myzip:
+	myzip.write("../python/read_netcdf/read_netcdf.py", "read_netcdf.py")
+	myzip.write("../python/read_netcdf/read_netcdf.m", "read_netcdf.m")
+	myzip.write(tmp_f+"info.txt", "info.txt")
+	myzip.write(outfile, os.path.basename(outfile))
+	DownloadShape()
