@@ -147,6 +147,7 @@ elif file_type == 'Tif':
 	shutil.make_archive(zip_name, format=compression, root_dir=temp_folder1)
 else:
 	command = "for b in `ls "+out_file+"`; do /usr/local/bin/gdal_translate -of netCDF -co FORMAT=NC4 "+out_file+" "+temp_folder1+"$(basename ${b%.*}).nc; done"
+	command1 = "cp /mnt/t/disk2/pconnect/CHRSData/python/read_netcdf/read_netcdf.py "+temp_folder1
 	subprocess.Popen(command, shell=True, executable="/bin/bash").communicate()
 	zip_name = out_file.split('_')[0]+"_"+currentDateTime
 	shutil.make_archive(zip_name, format=compression, root_dir=temp_folder1)

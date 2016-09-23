@@ -6,6 +6,7 @@ import gdal
 import re
 import shutil
 from zipfile import ZipFile
+import tarfile
 from netCDF4 import Dataset
 import numpy as np
 import multiprocessing
@@ -140,6 +141,8 @@ yllcor = b[3] + nlon*b[4] + nlat*b[5]
 
 #create info file
 file_info = open(temp_folder0+'info.txt', 'w')
+file_info.write("Satellite precipitation data in NetCDF format downloaded from UCI CHRS's DataPortal(chrsdata.eng.uci.edu).\n")
+file_info.write("Data domain:\n")
 file_info.write("ncols     %s\n" % nlon)
 file_info.write("nrows    %s\n" % nlat)
 file_info.write("xllcorner %.3f\n" % xllcor)
@@ -202,8 +205,16 @@ elif (len(ds.ReadAsArray().shape) == 2):
 
 nco.close()
 zip_name = outfile.split('_')[0]+"_"+curr_str+'.'+compression
-with ZipFile(zip_name, 'w') as myzip:
-	myzip.write("../python/read_netcdf/read_netcdf.py", "read_netcdf.py")
-	myzip.write("../python/read_netcdf/read_netcdf.m", "read_netcdf.m")
-	myzip.write(temp_folder0+"info.txt", "info.txt")
-	myzip.write(outfile, os.path.basename(outfile))
+if compression == 'zip':
+	with ZipFile(zip_name, 'w') as myzip:
+		myzip.write("../python/read_netcdf/read_netcdf.py", "read_netcdf.py")
+		myzip.write("../python/read_netcdf/read_netcdf.m", "read_netcdf.m")
+		myzip.write(temp_folder0+"info.txt", "info.txt")
+		myzip.write(outfile, os.path.basename(outfile))
+else:
+	tar = tarfile.open(zip_name, "w")
+	tar.add(outfile, os.path.basename(outfile))
+	tar.add("../python/read_netcdf/read_netcdf.py", "read_netcdf.py")
+	tar.add("../python/read_netcdf/read_netcdf.m", "read_netcdf.m")
+	tar.add(temp_folder0+"info.txt", "info.txt")
+	tar.close()

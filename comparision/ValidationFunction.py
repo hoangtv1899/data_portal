@@ -3,14 +3,18 @@
 import numpy as np
 from collections import OrderedDict
 
-def ValidationFunction(sim, obs):
+def ValidationFunction(obs, sim):
 	result = OrderedDict()
 	np.seterr(all='ignore')
-	NoSimPoints = np.ma.count(sim)
-	NoObsPoints = np.ma.count(obs)
+	#NoSimPoints = np.ma.count(sim)
+	#NoObsPoints = np.ma.count(obs)
 	#flatten arrays
-	simulated = (np.ma.masked_where(obs.mask==True, sim)).flatten('C')
-	observed = (np.ma.masked_where(sim.mask==True, obs)).flatten('C')
+	try:
+		simulated = (np.ma.masked_where(obs.mask==True, sim))
+		observed = (np.ma.masked_where(sim.mask==True, obs))
+	except:
+		simulated = sim
+		observed = obs
 	HitError = simulated[np.logical_and(simulated > 0, observed > 0)] - observed[np.logical_and(simulated > 0, observed > 0)]
 	#hit bias
 	hit_bias = np.sum(HitError)
@@ -75,13 +79,17 @@ def ValidationFunction(sim, obs):
 	RMSE = np.sqrt(np.mean((simulated - observed)**2))
 	RMSE = round(RMSE, 4)
 	#RMSE normalize
-	RMSE_norm = RMSE/float(np.max(simulated) - np.min(simulated))
+	if (float(np.max(simulated) - np.min(simulated))) == 0:
+		RMSE_norm = np.Inf
+	else:
+		RMSE_norm = RMSE/float(np.max(simulated) - np.min(simulated))
 	#Mean absolute error
 	MAE = np.mean(np.absolute(simulated - observed))
 	MAE = round(MAE, 4)
 	#Correlation
-	corr = np.corrcoef(simulated, observed)[-1,0]
+	corr = np.corrcoef(simulated, observed)[0,1]
 	corr = round(corr, 4)
-	result['NoSimPoints']=NoSimPoints; result['NoObsPoints']=NoObsPoints; result['biasmap']=biasmap; result['hit_bias']=hit_bias; result['NoHit']=NoHit; result['NoFalse']=NoFalse; result['NoMiss']=NoMiss; result['NoCorrNeg']=NoCorrNeg; result['SumMiss']=SumMiss; result['SumFalse']=SumFalse; result['SumSimhit']=SumSimhit; result['corr']=corr; result['MAE']=MAE; result['RMSE']=RMSE; result['POD']=POD; result['FAR']=FAR; result['BIAS']=BIAS; result['HSS']=HSS; result['HK']=HK; result['ETS']=ETS
+	#result['NoSimPoints']=NoSimPoints; result['NoObsPoints']=NoObsPoints; result['biasmap']=biasmap; result['hit_bias']=hit_bias; result['NoHit']=NoHit; result['NoFalse']=NoFalse; result['NoMiss']=NoMiss; result['NoCorrNeg']=NoCorrNeg; result['SumMiss']=SumMiss; result['SumFalse']=SumFalse; result['SumSimhit']=SumSimhit; result['corr']=corr; result['MAE']=MAE; result['RMSE']=RMSE; result['POD']=POD; result['FAR']=FAR; result['BIAS']=BIAS; result['HSS']=HSS; result['HK']=HK; result['ETS']=ETS
+	#return np.array([biasmap, NoHit, NoFalse, NoMiss, SumMiss, SumFalse, SumSimhit, corr, RMSE, POD, FAR])
+	result['corr']=corr; result['MAE']=MAE; result['RMSE']=RMSE; result['RMSE normalize']=RMSE_norm; result['POD']=POD; result['FAR']=FAR; result['BIAS']=BIAS; result['HSS']=HSS; result['HK']=HK; result['ETS']=ETS 
 	return result
-	

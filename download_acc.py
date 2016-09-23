@@ -12,6 +12,7 @@ from netCDF4 import Dataset
 import numpy as np
 import multiprocessing
 import itertools
+import tarfile
 from zipfile import ZipFile
 from ShapeSelection import ShapeSelection
 from asc_format_ccs1 import AscFormat
@@ -60,6 +61,11 @@ def DownloadShape():
 	myzip.write(outShapefile[:-4]+".shp", os.path.basename(outShapefile)[:-4]+".shp")
 	myzip.write(outShapefile[:-4]+".shx", os.path.basename(outShapefile)[:-4]+".shx")
 	myzip.write(outShapefile[:-4]+".dbf", os.path.basename(outShapefile)[:-4]+".dbf")
+
+def DownloadShapeTar():
+	tar.add(outShapefile[:-4]+".shp", os.path.basename(outShapefile)[:-4]+".shp")
+	tar.add(outShapefile[:-4]+".shx", os.path.basename(outShapefile)[:-4]+".shx")
+	tar.add(outShapefile[:-4]+".dbf", os.path.basename(outShapefile)[:-4]+".dbf")
 	
 out_file = sys.argv[1]
 dataset = sys.argv[2]
@@ -263,18 +269,16 @@ if file_type == 'Tif':
 	zip_name = out_file.split('_')[0]+"_"+currentDateTime+'.'+compression
 	with ZipFile(zip_name, 'w') as myzip:
 		myzip.write(out_file, os.path.basename(out_file))
-		if dataset not in ['CCS', 'CDR', 'PERSIANN']:
-			if br_dwn[1] == 'shp':
-				DownloadShape()
+		if br_dwn[1] == 'shp':
+			DownloadShape()
 elif file_type == 'ArcGrid':
 	out_file = out_file[:-4]+".asc"
 	AscFormat([temp_folder0+os.path.splitext(os.path.basename(out_file))[0]+".tif", out_file, dataset1])
 	zip_name = out_file.split('_')[0]+"_"+currentDateTime+'.'+compression
 	with ZipFile(zip_name, 'w') as myzip:
 		myzip.write(out_file, os.path.basename(out_file))
-		if dataset not in ['CCS', 'CDR', 'PERSIANN']:
-			if br_dwn[1] == 'shp':
-				DownloadShape()
+		if br_dwn[1] == 'shp':
+			DownloadShape()
 elif file_type == 'NetCDF':
 	out_file = out_file[:-4]+".nc"
 	ds = gdal.Open(temp_folder0+os.path.splitext(os.path.basename(out_file))[0]+".tif")
@@ -288,6 +292,8 @@ elif file_type == 'NetCDF':
 	yllcor = b[3] + nlon*b[4] + nlat*b[5]
 	#create info file
 	file_info = open(temp_folder0+'info.txt', 'w')
+	file_info.write("Satellite precipitation data in NetCDF format downloaded from UCI CHRS's DataPortal(chrsdata.eng.uci.edu).\n")
+	file_info.write("Data domain:\n")
 	file_info.write("ncols     %s\n" % nlon)
 	file_info.write("nrows    %s\n" % nlat)
 	file_info.write("xllcorner %.3f\n" % xllcor)
@@ -324,11 +330,20 @@ elif file_type == 'NetCDF':
 	tmno[:] = a
 	nco.close()
 	zip_name = out_file.split('_')[0]+"_"+currentDateTime+'.'+compression
-	with ZipFile(zip_name, 'w') as myzip:
-		myzip.write("../python/read_netcdf/read_netcdf.py", "read_netcdf.py")
-		myzip.write("../python/read_netcdf/read_netcdf.m", "read_netcdf.m")
-		myzip.write(temp_folder0+"info.txt", "info.txt")
-		myzip.write(out_file, os.path.basename(out_file))
-		if dataset not in ['CCS', 'CDR', 'PERSIANN']:
+	if compression == 'zip':
+		with ZipFile(zip_name, 'w') as myzip:
+			myzip.write("../python/read_netcdf/read_netcdf.py", "read_netcdf.py")
+			myzip.write("../python/read_netcdf/read_netcdf.m", "read_netcdf.m")
+			myzip.write(temp_folder0+"info.txt", "info.txt")
+			myzip.write(out_file, os.path.basename(out_file))
 			if br_dwn[1] == 'shp':
 				DownloadShape()
+	else:
+		tar = tarfile.open(zip_name, "w:gz")
+		tar.add(outfile, os.path.basename(outfile))
+		tar.add("../python/read_netcdf/read_netcdf.py", "read_netcdf.py")
+		tar.add("../python/read_netcdf/read_netcdf.m", "read_netcdf.m")
+		tar.add(tmp_f+"info.txt", "info.txt")
+		if br_dwn[1] == 'shp':
+			DownloadShapeTar()
+		tar.close()

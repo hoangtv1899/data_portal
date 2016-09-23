@@ -43,6 +43,6 @@ if file_type == 'ArcGrid':
 	pool.map(AscFormat, itertools.izip(list_file, list_dest_file, dataset_arr))
 	shutil.make_archive(outfile, format=compression, root_dir=temp_folder0)
 elif file_type == 'Tif':
-	os.system("for b in `ls "+path_to_file+"`; cp $b "+temp_folder0+"$(basename ${b%.*}).tif; done")
+	os.system("for b in `ls "+path_to_file+"`; do cp $b "+temp_folder0+"$(basename ${b%.*}).tif; done")
 	shutil.make_archive(outfile, format=compression, root_dir=temp_folder0)
  

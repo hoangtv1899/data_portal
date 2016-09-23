@@ -5,6 +5,7 @@ import sys
 import gdal
 import shutil
 import ogr
+import tarfile
 from zipfile import ZipFile
 from netCDF4 import Dataset
 import numpy as np
@@ -46,6 +47,11 @@ def DownloadShape():
 	myzip.write(outShapefile[:-4]+".shp", os.path.basename(outShapefile)[:-4]+".shp")
 	myzip.write(outShapefile[:-4]+".shx", os.path.basename(outShapefile)[:-4]+".shx")
 	myzip.write(outShapefile[:-4]+".dbf", os.path.basename(outShapefile)[:-4]+".dbf")
+
+def DownloadShapeTar():
+	tar.add(outShapefile[:-4]+".shp", os.path.basename(outShapefile)[:-4]+".shp")
+	tar.add(outShapefile[:-4]+".shx", os.path.basename(outShapefile)[:-4]+".shx")
+	tar.add(outShapefile[:-4]+".dbf", os.path.basename(outShapefile)[:-4]+".dbf")
 	
 ####Create tif files###
 if dataset == 'CDR':
@@ -112,6 +118,8 @@ yllcor = b[3] + nlon*b[4] + nlat*b[5]
 
 #create info file
 file_info = open(tmp_f+'info.txt', 'w')
+file_info.write("Satellite precipitation data in NetCDF format downloaded from UCI CHRS's DataPortal(chrsdata.eng.uci.edu).\n")
+file_info.write("Data domain:\n")
 file_info.write("ncols     %s\n" % nlon)
 file_info.write("nrows    %s\n" % nlat)
 file_info.write("xllcorner %.3f\n" % xllcor)
@@ -174,9 +182,18 @@ elif (len(ds.ReadAsArray().shape) == 2):
 
 nco.close()
 zip_name = outfile[:-3]+'.'+compression
-with ZipFile(zip_name, 'w') as myzip:
-	myzip.write("../python/read_netcdf/read_netcdf.py", "read_netcdf.py")
-	myzip.write("../python/read_netcdf/read_netcdf.m", "read_netcdf.m")
-	myzip.write(tmp_f+"info.txt", "info.txt")
-	myzip.write(outfile, os.path.basename(outfile))
-	DownloadShape()
+if compression == 'zip':
+	with ZipFile(zip_name, 'w') as myzip:
+		myzip.write("../python/read_netcdf/read_netcdf.py", "read_netcdf.py")
+		myzip.write("../python/read_netcdf/read_netcdf.m", "read_netcdf.m")
+		myzip.write(tmp_f+"info.txt", "info.txt")
+		myzip.write(outfile, os.path.basename(outfile))
+		DownloadShape()
+else:
+	tar = tarfile.open(zip_name, "w:gz")
+	tar.add(outfile, os.path.basename(outfile))
+	tar.add("../python/read_netcdf/read_netcdf.py", "read_netcdf.py")
+	tar.add("../python/read_netcdf/read_netcdf.m", "read_netcdf.m")
+	tar.add(tmp_f+"info.txt", "info.txt")
+	DownloadShapeTar()
+	tar.close()

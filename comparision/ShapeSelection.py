@@ -8,7 +8,7 @@ import sys
 import itertools
 import multiprocessing
 
-def ShapeSelection(loc, shape):
+def ShapeSelection(loc, shape, temp_folder0):
 	pool = multiprocessing.Pool(processes = 4)
 	#create a point
 	point = ogr.Geometry(ogr.wkbPoint)
@@ -24,7 +24,7 @@ def ShapeSelection(loc, shape):
 		prop = 'NAM'
 	elif shp_name[:6] == 'basins':
 		prop = 'HYBAS_ID'
-	results = pool.map(FindFeature, itertools.izip(itertools.repeat(prop, len(layer)),  itertools.repeat(p1, len(layer)),range(len(layer)), itertools.repeat(shape, len(layer))))
+	results = pool.map(FindFeature, itertools.izip(itertools.repeat(prop, len(layer)),  itertools.repeat(p1, len(layer)),range(len(layer)), itertools.repeat(shape, len(layer)), itertools.repeat(temp_folder0, len(layer))))
 	out_shape = [k1 for k1 in results if k1 is not None][0]
 	if out_shape:
 		return out_shape
@@ -37,6 +37,7 @@ def FindFeature(args):
 	p1 = args[1]
 	i = args[2]
 	shape = args[3]
+	temp_folder0 = args[4]
 	#create an output shapefile
 	driver = ogr.GetDriverByName('ESRI Shapefile')
 	# Add an ID field
@@ -52,7 +53,7 @@ def FindFeature(args):
 			feat_name = str(int(feat_name))
 		if ' ' in feat_name:
 			feat_name = feat_name.replace(' ','_')
-		out_shape = 'shapes/'+feat_name+'.shp'
+		out_shape = temp_folder0+feat_name+'.shp'
 		if os.path.isfile(out_shape):
 			os.remove(out_shape)
 		out_shp = driver.CreateDataSource(out_shape)
