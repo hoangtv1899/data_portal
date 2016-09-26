@@ -6,6 +6,7 @@ import ogr
 import sys
 import math
 import numpy as np
+import glob
 import multiprocessing
 import itertools
 from ShapeSelection import ShapeSelection
@@ -169,23 +170,29 @@ else:	#shape and rectangle
 				ymax1 = 60
 			p = [xmin1, ymin1, xmax1, ymax1]
 			p1 = map(str, p)
+
+file_list = []
+#date_list = []
 for j in day_list:
 	j_time = datetime.strptime(j, '%y%m%d')
-	date_list.append(dataset1+'_'+timestepD+j_time.strftime('%Y%m%d'))
+	file_list = file_list+glob.glob(base_path+'daily/'+dataset1+'_'+timestepD+j_time.strftime('%Y%m%d')+'*.tif')
+#	date_list.append(dataset1+'_'+timestepD+j_time.strftime('%Y%m%d'))
 
 for k in month_list:
 	k_time = datetime.strptime(k, '%y%m')
-	date_list.append(dataset1+'_'+timestepM+k_time.strftime('%Y%m'))
+	file_list = file_list+glob.glob(base_path+'monthly/'+dataset1+'_'+timestepM+k_time.strftime('%Y%m')+'*.tif')
+#	date_list.append(dataset1+'_'+timestepM+k_time.strftime('%Y%m'))
 
 for l in year_list:
 	l_time = datetime.strptime(l, '%y')
-	date_list.append(dataset1+'_'+timestepY+l_time.strftime('%Y'))
+	file_list = file_list+glob.glob(base_path+'yearly/'+dataset1+'_'+timestepY+l_time.strftime('%Y')+'*.tif')
+#	date_list.append(dataset1+'_'+timestepY+l_time.strftime('%Y'))
 
-file_list = []
-for root, dirs, files in os.walk(base_path):
-	for file in files:
-		if any(dl in file for dl in date_list) and os.path.splitext(file)[-1] == '.tif':
-			file_list.append(os.path.join(root, file))
+#file_list = []
+#for root, dirs, files in os.walk(base_path):
+#	for file in files:
+#		if any(dl in file for dl in date_list) and os.path.splitext(file)[-1] == '.tif':
+#			file_list.append(os.path.join(root, file))
 
 #print file_list
 #DO THE ACCUMULATION

@@ -10,7 +10,7 @@ import multiprocessing as mp
 from contextlib import closing
 import itertools
 import ctypes
-from osgeo import gdal, ogr
+from osgeo import gdal, ogr, osr
 import json
 import warnings
 from ValidationFunction import ValidationFunction
@@ -140,77 +140,88 @@ else:
 	start_date1 = start_date
 	end_date1 = end_date
 
+arr_len = 3
 #compare time step
 if time_step not in RefSet:
 	print time_step+' is not in the dataset of '+DataRef+'. Skipping '+DataRef+'.'
+	arr_len -= 1
 	DataRef = Data1
 	RefPath = FilePath1
 	RefStart = FileStart1
 elif time_step not in FileSet1:
 	print time_step+' is not in the dataset of '+Data1+'. Skipping '+Data1+'.'
-	Data1 = RefSet
+	arr_len -= 1
+	Data1 = DataRef
 	FilePath1 = RefPath
 	FileStart1 = RefStart
 elif time_step not in FileSet2:
 	print time_step+' is not in the dataset of '+Data2+'. Skipping '+Data2+'.'
-	Data2 = RefSet
+	arr_len -= 1
+	Data2 = DataRef
 	FilePath2 = RefPath
 	FileStart2 = RefStart
-
+	
 #compare end date
 if time_step == 'customized':
 	if (int(end_date1) < int(RefStart)):
 		print 'start date is smaller than time range of '+DataRef+'. Skipping '+DataRef+'.'
+		arr_len -= 1
 		DataRef = Data1
 		RefPath = FilePath1
 		if ((int(end_date1) < int(FileStart1)) or (int(end_date1) < int(FileStart2))):
-			print 'Not enough dataset'
+			print 'error:Not enough dataset'
 			sys.exit()
 	elif int(end_date1) < int(FileStart1):
 		print 'start date is smaller than time range of '+Data1+'. Skipping '+Data1+'.'
+		arr_len -= 1
 		Data1 = DataRef
 		FilePath1 = RefPath
 		if ((int(end_date1) < int(RefStart)) or (int(end_date1) < int(FileStart2))):
-			print 'Not enough dataset'
+			print 'error:Not enough dataset'
 			sys.exit()
 	elif int(end_date1) < int(FileStart2):
 		print 'start date is smaller than time range of '+Data2+'. Skipping '+Data2+'.'
+		arr_len -= 1
 		Data2 = DataRef
 		FilePath2 = RefPath
 		if ((int(end_date1) < int(RefStart)) or (int(end_date1) < int(FileStart1))):
-			print 'Not enough dataset'
+			print 'error:Not enough dataset'
 			sys.exit()
 
 #compare start date
 if (int(start_date1) < int(RefStart)):
 	print 'start date is smaller than time range of '+DataRef+'. Skipping '+DataRef+'.'
+	arr_len -= 1
 	DataRef = Data1
 	RefPath = FilePath1
 	if ((int(start_date1) < int(FileStart1)) or (int(start_date1) < int(FileStart2))):
-		print 'Not enough dataset'
+		print 'error:Not enough dataset'
 		sys.exit()
 elif int(start_date1) < int(FileStart1):
 	print 'start date is smaller than time range of '+Data1+'. Skipping '+Data1+'.'
+	arr_len -= 1
 	Data1 = DataRef
 	FilePath1 = RefPath
 	if ((int(start_date1) < int(RefStart)) or (int(start_date1) < int(FileStart2))):
-		print 'Not enough dataset'
+		print 'error:Not enough dataset'
 		sys.exit()
 elif int(start_date1) < int(FileStart2):
 	print 'start date is smaller than time range of '+Data2+'. Skipping '+Data2+'.'
+	arr_len -= 1
 	Data2 = DataRef
 	FilePath2 = RefPath
 	if ((int(start_date1) < int(RefStart)) or (int(start_date1) < int(FileStart1))):
-		print 'Not enough dataset'
+		print 'error:Not enough dataset'
 		sys.exit()
 
-if (len(set([DataRef, Data1, Data2])) < 2):
-	print 'Not enough dataset'
+print arr_len
+if (arr_len < 2):
+	print 'error:Not enough dataset'
 	sys.exit()
 
 pool = mp.Pool(processes = 16)
 domain_split = domain.split(' ')
-if (len([DataRef, Data1, Data2]) == len(set([DataRef, Data1, Data2]))):
+if (arr_len == 3):
 	if domain_split[0] == 'wholemap':
 		if time_step != 'customized':
 			#list file from terminal
@@ -300,6 +311,9 @@ if (len([DataRef, Data1, Data2]) == len(set([DataRef, Data1, Data2]))):
 				ymax1 = 60
 			p = [xmin1, ymin1, xmax1, ymax1]
 			extend = [xmin1, xmax1, ymax1, ymin1]
+	ds = gdal.Open(Refvrt)
+	Projection = osr.SpatialReference()
+	Projection.ImportFromWkt(ds.GetProjectionRef())
 	ref_arr = gdal.Open(Refvrt).ReadAsArray()
 	obs_arr1 = gdal.Open(File1vrt).ReadAsArray()
 	obs_arr2 = gdal.Open(File2vrt).ReadAsArray()
@@ -312,16 +326,17 @@ if (len([DataRef, Data1, Data2]) == len(set([DataRef, Data1, Data2]))):
 	RefStat = OrderedDict()
 	Obs1Stat = OrderedDict()
 	Obs2Stat = OrderedDict()
-	RefStat['Number of points']=nr*nc; RefStat['Number of points with rain']=np.ma.count(ref_arr_mask); RefStat['Mean rain rate']=round(np.ma.mean(ref_arr_mask),2); RefStat['Max rain rate']=round(np.ma.max(ref_arr_mask),2)
-	Obs1Stat['Number of points']=nr*nc; Obs1Stat['Number of points with rain']=np.ma.count(obs_arr1_mask); Obs1Stat['Mean rain rate']=round(np.ma.mean(obs_arr1_mask),2); Obs1Stat['Max rain rate']=round(np.ma.max(obs_arr1_mask),2)
-	Obs2Stat['Number of points']=nr*nc; Obs2Stat['Number of points with rain']=np.ma.count(obs_arr2_mask); Obs2Stat['Mean rain rate']=round(np.ma.mean(obs_arr2_mask),2); Obs2Stat['Max rain rate']=round(np.ma.max(obs_arr2_mask),2)
+	RefStat['Number of points']=nr*nc; RefStat['Number of points with rain']=np.ma.count(ref_arr_mask); RefStat['Mean rain rate']=round(np.ma.mean(ref_arr_mask),3); RefStat['Max rain rate']=round(np.ma.max(ref_arr_mask),3)
+	Obs1Stat['Number of points']=nr*nc; Obs1Stat['Number of points with rain']=np.ma.count(obs_arr1_mask); Obs1Stat['Mean rain rate']=round(np.ma.mean(obs_arr1_mask),3); Obs1Stat['Max rain rate']=round(np.ma.max(obs_arr1_mask),3)
+	Obs2Stat['Number of points']=nr*nc; Obs2Stat['Number of points with rain']=np.ma.count(obs_arr2_mask); Obs2Stat['Mean rain rate']=round(np.ma.mean(obs_arr2_mask),3); Obs2Stat['Max rain rate']=round(np.ma.max(obs_arr2_mask),3)
 	result_1 = ValidationFunction(ref_arr_mask, obs_arr1_mask)
 	result_2 = ValidationFunction(ref_arr_mask, obs_arr2_mask)
 	result_3 = ValidationFunction(obs_arr1_mask, obs_arr2_mask)
 	#print results
-	print 'D0: '+' '.join([str(x1) for x1 in [RefStat.values()+result_1.values()]])
-	print 'D1: '+' '.join([str(x1) for x1 in [Obs1Stat.values()+result_2.values()]])
-	print 'D2: '+' '.join([str(x1) for x1 in [Obs2Stat.values()+result_3.values()]])
+	print 'D0:'+','.join([str(x1) for x1 in RefStat.values()+result_1.values()])
+	print 'D1:'+','.join([str(x1) for x1 in Obs1Stat.values()+result_2.values()])
+	print 'D2:'+','.join([str(x1) for x1 in Obs2Stat.values()+result_3.values()])
+	
 else:
 	if domain_split[0] == 'wholemap':
 		extend = [-180, 180, 60, -60]
@@ -400,6 +415,9 @@ else:
 				ymax1 = 60
 			p = [xmin1, ymin1, xmax1, ymax1]
 			extend = [xmin1, xmax1, ymax1, ymin1]
+	ds = gdal.Open(File1vrt)
+	Projection = osr.SpatialReference()
+	Projection.ImportFromWkt(ds.GetProjectionRef())
 	obs_arr1 = gdal.Open(File1vrt).ReadAsArray()
 	obs_arr2 = gdal.Open(File2vrt).ReadAsArray()
 	#Masking data
@@ -409,18 +427,62 @@ else:
 	#get results from ValidationFunction
 	Obs1Stat = OrderedDict()
 	Obs2Stat = OrderedDict()
-	Obs1Stat['Number of points']=nr*nc; Obs1Stat['Number of points with rain']=np.ma.count(obs_arr1_mask); Obs1Stat['Mean rain rate']=round(np.ma.mean(obs_arr1_mask),2); Obs1Stat['Max rain rate']=round(np.ma.max(obs_arr1_mask),2)
-	Obs2Stat['Number of points']=nr*nc; Obs2Stat['Number of points with rain']=np.ma.count(obs_arr2_mask); Obs2Stat['Mean rain rate']=round(np.ma.mean(obs_arr2_mask),2); Obs2Stat['Max rain rate']=round(np.ma.max(obs_arr2_mask),2)
+	Obs1Stat['Number of points']=nr*nc; Obs1Stat['Number of points with rain']=np.ma.count(obs_arr1_mask); Obs1Stat['Mean rain rate']=round(np.ma.mean(obs_arr1_mask),3); Obs1Stat['Max rain rate']=round(np.ma.max(obs_arr1_mask),3)
+	Obs2Stat['Number of points']=nr*nc; Obs2Stat['Number of points with rain']=np.ma.count(obs_arr2_mask); Obs2Stat['Mean rain rate']=round(np.ma.mean(obs_arr2_mask),3); Obs2Stat['Max rain rate']=round(np.ma.max(obs_arr2_mask),3)
 	result_1 = ValidationFunction(obs_arr1_mask, obs_arr2_mask)
 	#print results
-	print 'D0: '+' '.join([str(x1) for x1 in [Obs1Stat.values()+result_1.values()]])
-	print 'D1: '+' '.join([str(x1) for x1 in Obs2Stat.values()])
+	print 'D0:'+','.join([str(x1) for x1 in Obs1Stat.values()+result_1.values()])
+	print 'D1:'+','.join([str(x1) for x1 in Obs2Stat.values()])
 	result_2 = np.array([])
 
 #plot result images
+driver = gdal.GetDriverByName('GTiff')
 if len(result_2) != 0:
-	PlotMap2(ref_arr_mask, DataRef, obs_arr1_mask, Data1, extend, time_step, temp_folder, obs_arr2_mask, Data2)
+	PlotMap2(ref_arr_mask, DataRef, obs_arr1_mask, Data1, time_step, temp_folder, obs_arr2_mask, Data2)
+	#export to rasters
+	os.system("/usr/local/epd-7.2-2-rh5-x86_64/bin/gdal_translate -q -of GTiff -ot Int16 -co COMPRESS=LZW "+Refvrt+" "+temp_folder+"Ref.tif")
+	os.system("/usr/local/epd-7.2-2-rh5-x86_64/bin/gdal_translate -q -of GTiff -ot Int16 -co COMPRESS=LZW "+File1vrt+" "+temp_folder+"File1.tif")
+	os.system("/usr/local/epd-7.2-2-rh5-x86_64/bin/gdal_translate -q -of GTiff -ot Int16 -co COMPRESS=LZW "+File2vrt+" "+temp_folder+"File2.tif")
+	Diff1 = obs_arr1_mask-ref_arr_mask
+	Diff1 = Diff1.filled(-99)
+	Diff1name = temp_folder+"Diff1.tif"
+	Diff1_raster = driver.Create(Diff1name, ds.RasterXSize, ds.RasterYSize, 1, gdal.GDT_Int16, ['COMPRESS=LZW'],)
+	Diff1_raster.SetGeoTransform(ds.GetGeoTransform())
+	Diff1_raster.SetProjection(Projection.ExportToWkt())
+	Diff1_raster.GetRasterBand(1).WriteArray(Diff1)
+	Diff1_raster.GetRasterBand(1).SetNoDataValue(-99)
+	Diff1_raster.FlushCache()
+	Diff2 = obs_arr2_mask-ref_arr_mask
+	Diff2 = Diff2.filled(-99)
+	Diff2name = temp_folder+"Diff2.tif"
+	Diff2_raster = driver.Create(Diff2name, ds.RasterXSize, ds.RasterYSize, 1, gdal.GDT_Int16, ['COMPRESS=LZW'],)
+	Diff2_raster.SetGeoTransform(ds.GetGeoTransform())
+	Diff2_raster.SetProjection(Projection.ExportToWkt())
+	Diff2_raster.GetRasterBand(1).WriteArray(Diff2)
+	Diff2_raster.GetRasterBand(1).SetNoDataValue(-99)
+	Diff2_raster.FlushCache()
+	Diff3 = obs_arr2_mask-obs_arr1_mask
+	Diff3 = Diff3.filled(-99)
+	Diff3name = temp_folder+"Diff3.tif"
+	Diff3_raster = driver.Create(Diff3name, ds.RasterXSize, ds.RasterYSize, 1, gdal.GDT_Int16, ['COMPRESS=LZW'],)
+	Diff3_raster.SetGeoTransform(ds.GetGeoTransform())
+	Diff3_raster.SetProjection(Projection.ExportToWkt())
+	Diff3_raster.GetRasterBand(1).WriteArray(Diff3)
+	Diff3_raster.GetRasterBand(1).SetNoDataValue(-99)
+	Diff3_raster.FlushCache()
 	os.system('cp '+temp_folder+'/* '+result_folder)
 else:
-	PlotMap2(obs_arr2_mask, Data2, obs_arr1_mask, Data1, extend, time_step, temp_folder)
+	PlotMap2(obs_arr2_mask, Data2, obs_arr1_mask, Data1, time_step, temp_folder)
+	#export to rasters
+	os.system("/usr/local/epd-7.2-2-rh5-x86_64/bin/gdal_translate -q -of GTiff -ot Int16 -co COMPRESS=LZW "+File1vrt+" "+temp_folder+"File1.tif")
+	os.system("/usr/local/epd-7.2-2-rh5-x86_64/bin/gdal_translate -q -of GTiff -ot Int16 -co COMPRESS=LZW "+File2vrt+" "+temp_folder+"File2.tif")
+	Diff1 = obs_arr2_mask-obs_arr1_mask
+	Diff1 = Diff1.filled(-99)
+	Diff1name = temp_folder+"Diff3.tif"
+	Diff1_raster = driver.Create(Diff1name, ds.RasterXSize, ds.RasterYSize, 1, gdal.GDT_Int16, ['COMPRESS=LZW'],)
+	Diff1_raster.SetGeoTransform(ds.GetGeoTransform())
+	Diff1_raster.SetProjection(Projection.ExportToWkt())
+	Diff1_raster.GetRasterBand(1).WriteArray(Diff1)
+	Diff1_raster.GetRasterBand(1).SetNoDataValue(-99)
+	Diff1_raster.FlushCache()
 	os.system('cp '+temp_folder+'/* '+result_folder)

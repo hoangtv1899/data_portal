@@ -3,6 +3,8 @@
 import os
 import numpy as np
 import math
+import tempfile
+os.environ['MPLCONFIGDIR'] = tempfile.mkdtemp()
 import matplotlib as mpl
 mpl.use('Agg') # Must be before importing matplotlib.pyplot or pylab!
 import matplotlib.pyplot as plt
@@ -13,8 +15,8 @@ from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 import traceback
 import logging
 
-def PlotMap(sim, sim_name, obs, obs_name, extend, steps, time_type):
-	pool = multiprocessing.Pool(processes = 4)
+def PlotMap2(obs, obs_name, sim1, sim_name1, extend, time_type, temp_folder, sim2=None, sim_name2=None):
+	pool = multiprocessing.Pool(processes = 16)
 	# define the bins and normalize
 	if time_type == 'yearly':
 		bounds = np.array([-99., 0., 30., 60., 90., 120., 150., 210., 300., 375., 450., 600., 750., 900., 1050., 1200., 1500., 2250., 3000., 3750., 4500., 6000., 9000., 12000., 15000., 18000., 20000.])
@@ -26,9 +28,9 @@ def PlotMap(sim, sim_name, obs, obs_name, extend, steps, time_type):
 		bounds1 = np.linspace(-300,300, 21)
 		sc1 = 300.
 		sc2 = 100.
-	elif time_type in ['daily', 'hourly']:
+	elif time_type in ['daily', '1hrly', '3hrly', '6hrly']:
 		bounds = np.array([-99., 0., 1., 2., 3., 4., 5., 7., 10., 13., 15., 20., 25., 30., 35., 40., 50., 75., 100., 125., 150., 200., 300., 400., 500., 600., 800])
-		bounds1 = np.linspace(-20,20, 21)
+		bounds1 = np.linspace(-15,15, 21)
 		sc1 = 10.
 		sc2 = 10.
 	# define the colormap
@@ -44,60 +46,134 @@ def PlotMap(sim, sim_name, obs, obs_name, extend, steps, time_type):
 	norm = mpl.colors.BoundaryNorm(bounds, cmap0.N)
 	norm1 = mpl.colors.BoundaryNorm(bounds1, cmap1.N)
 	#flatten arrays
-	x = sim.flatten('C')
-	y = obs.flatten('C')
-	#array of difference
-	c = sim-obs
-	v_maxC = math.ceil(np.max(c)/sc2)*sc2
-	v_minC = math.floor(np.min(c)/sc2)*sc2
-	masked_c = np.ma.masked_where(c == 0, c)
-	masked_sim = np.ma.masked_where(sim.filled(-99) == 0, sim.filled(-99))
-	masked_obs = np.ma.masked_where(obs.filled(-99) == 0, obs.filled(-99))
-	#scatter plot
-	if np.max(sim) > np.max(obs):
-		v_max = math.ceil(np.max(sim)/sc1)*sc1
-		extend_arr = [extend, extend, extend]
-		step_arr = [steps, steps, steps]
-		field_arr = [masked_sim, masked_obs, masked_c]
-		vmin_arr = [0., 0., v_minC]
-		vmax_arr = [v_max, v_max, v_maxC]
-		cmap_arr = [cmap0, cmap0, cmap1]
-		norm_arr = [norm, norm, norm1]
-		bound_arr = [bounds, bounds, bounds1]
-		name1_arr = [sim_name, obs_name, sim_name+' vs '+obs_name]
-		name2_arr = [obs_name, sim_name, None]
-		x_arr = [x, y, None]
-		y_arr = [y, x, None]
-		arg_arr = itertools.izip(extend_arr, step_arr, field_arr, vmin_arr, vmax_arr, cmap_arr, norm_arr, bound_arr, name1_arr, name2_arr, x_arr, y_arr)
-		pool.map(PlotColorMesh1, arg_arr)
+	x = obs.flatten('C')
+	y1 = sim1.flatten('C')
+	if sim_name2:
+		y2 = sim2.flatten('C')
+		#array of difference
+		c1 = sim1-obs
+		c2 = sim2-obs
+		c3 = sim2 -sim1
+		v_maxC1 = math.ceil(np.max(c1)/sc2)*sc2
+		v_minC1 = math.floor(np.min(c1)/sc2)*sc2
+		v_maxC2 = math.ceil(np.max(c2)/sc2)*sc2
+		v_minC2 = math.floor(np.min(c2)/sc2)*sc2
+		v_maxC3 = math.ceil(np.max(c3)/sc2)*sc2
+		v_minC3 = math.floor(np.min(c3)/sc2)*sc2
+		masked_c1 = np.ma.masked_where(c1 == 0, c1)
+		masked_c2 = np.ma.masked_where(c2 == 0, c2)
+		masked_c3 = np.ma.masked_where(c3 == 0, c3)
+		masked_sim1 = np.ma.masked_where(sim1.filled(-99) == 0, sim1.filled(-99))
+		masked_obs = np.ma.masked_where(obs.filled(-99) == 0, obs.filled(-99))
+		masked_sim2 = np.ma.masked_where(sim2.filled(-99) == 0, sim2.filled(-99))
 	else:
-		v_max = math.ceil(np.max(obs)/sc1)*sc1
-		extend_arr = [extend, extend, extend]
-		step_arr = [steps, steps, steps]
-		field_arr = [masked_obs, masked_sim, masked_c]
-		vmin_arr = [0., 0., v_minC]
-		vmax_arr = [v_max, v_max, v_maxC]
+		#array of difference
+		c1 = sim1-obs
+		v_maxC1 = math.ceil(np.max(c1)/sc2)*sc2
+		v_minC1 = math.floor(np.min(c1)/sc2)*sc2
+		masked_c1 = np.ma.masked_where(c1 == 0, c1)
+		masked_sim1 = np.ma.masked_where(sim1.filled(-99) == 0, sim1.filled(-99))
+		masked_obs = np.ma.masked_where(obs.filled(-99) == 0, obs.filled(-99))
+	if sim_name2:
+		#scatter plot
+		if np.max(obs) > max(np.max(sim1), np.max(sim2)):
+			v_max = math.ceil(np.max(obs)/sc1)*sc1
+		else:
+			obsMax = max(np.max(sim1), np.max(sim2))
+			v_max = math.ceil(obsMax/sc1)*sc1
+		if np.isinf(v_max):
+			v_max = 800
+		extend_arr = [extend]*6
+		field_arr = [masked_obs, masked_sim1, masked_sim2, masked_c1, masked_c2, masked_c3]
+		cmap_arr = [cmap0, cmap0, cmap0, cmap1, cmap1, cmap1]
+		norm_arr = [norm, norm, norm, norm1, norm1, norm1]
+		bound_arr = [bounds, bounds, bounds, bounds1, bounds1, bounds1]
+		name1_arr = ['Data0', 'Data1', 'Data2', 'Image1', 'Image2', 'Image3']
+		name2_arr = ['Data0', 'Data1', 'Data2', None, None, None]
+		temp_arr = [temp_folder]*6
+		arg_arr = itertools.izip(temp_arr, extend_arr, field_arr, cmap_arr, norm_arr, bound_arr, name1_arr, name2_arr)
+		pool.map(PlotColorMesh1, arg_arr)
+		#corr1
+		fig = plt.figure()
+		plt.plot(x, y1, '+', markersize=1, color='0.03' ,zorder = 4)
+		plt.plot([0, v_max], [0, v_max], 'r-', zorder = 5)
+		plt.axis([0, v_max, 0, v_max])
+		plt.xlabel(obs_name, fontsize=11, fontweight='bold')
+		plt.ylabel(sim_name1, fontsize=11, fontweight='bold', ha = 'left',labelpad=15)
+		plt.tick_params(axis='y', which='both', top='off', left='off', right='off', bottom='off', labelsize=10, pad=0.25)
+		plt.tick_params(axis='x', which='both', top='off', left='off', right='off', bottom='off', labelsize=10)
+		plt.xticks(np.linspace(0, int(v_max), 3))
+		plt.yticks(np.linspace(0, int(v_max), 3))
+		fig.savefig(temp_folder+'Correlation1.png')
+		plt.close()
+		#corr2
+		fig = plt.figure()
+		plt.plot(x, y2, '+', markersize=1, color='0.03' ,zorder = 4)
+		plt.plot([0, v_max], [0, v_max], 'r-', zorder = 5)
+		plt.axis([0, v_max, 0, v_max])
+		plt.xlabel(obs_name, fontsize=11, fontweight='bold')
+		plt.ylabel(sim_name2, fontsize=11, fontweight='bold', ha = 'left',labelpad=15)
+		plt.tick_params(axis='y', which='both', top='off', left='off', right='off', bottom='off', labelsize=10, pad=0.25)
+		plt.tick_params(axis='x', which='both', top='off', left='off', right='off', bottom='off', labelsize=10)
+		plt.xticks(np.linspace(0, int(v_max), 3))
+		plt.yticks(np.linspace(0, int(v_max), 3))
+		fig.savefig(temp_folder+'Correlation2.png')
+		plt.close()
+		#corr3
+		fig = plt.figure()
+		plt.plot(y2, y1, '+', markersize=1, color='0.03' ,zorder = 4)
+		plt.plot([0, v_max], [0, v_max], 'r-', zorder = 5)
+		plt.axis([0, v_max, 0, v_max])
+		plt.xlabel(sim_name1, fontsize=11, fontweight='bold')
+		plt.ylabel(sim_name2, fontsize=11, fontweight='bold', ha = 'left', labelpad=15)
+		plt.tick_params(axis='y', which='both', top='off', left='off', right='off', bottom='off', labelsize=10, pad=0.25)
+		plt.tick_params(axis='x', which='both', top='off', left='off', right='off', bottom='off', labelsize=10)
+		plt.xticks(np.linspace(0, int(v_max), 3))
+		plt.yticks(np.linspace(0, int(v_max), 3))
+		fig.savefig(temp_folder+'Correlation3.png')
+		plt.close()
+	else:
+		#scatter plot
+		if np.max(obs) > np.max(sim1):
+			v_max = math.ceil(np.max(obs)/sc1)*sc1
+		else:
+			obsMax = np.max(sim1)
+			v_max = math.ceil(obsMax/sc1)*sc1
+		if np.isinf(v_max):
+			v_max = 800
+		extend_arr = [extend]*3
+		field_arr = [masked_obs, masked_sim1, masked_c1]
 		cmap_arr = [cmap0, cmap0, cmap1]
 		norm_arr = [norm, norm, norm1]
 		bound_arr = [bounds, bounds, bounds1]
-		name1_arr = [obs_name, sim_name, obs_name+' vs '+sim_name]
-		name2_arr = [sim_name, obs_name, None]
-		x_arr = [y, x, None]
-		y_arr = [x, y, None]
-		arg_arr = itertools.izip(extend_arr, step_arr, field_arr, vmin_arr, vmax_arr, cmap_arr, norm_arr, bound_arr, name1_arr, name2_arr, x_arr, y_arr)
+		name1_arr = ['Data0', 'Data1', 'Image1']
+		name2_arr = ['Data0', 'Data1', None]
+		temp_arr = [temp_folder]*3
+		arg_arr = itertools.izip(temp_arr, extend_arr, field_arr, cmap_arr, norm_arr, bound_arr, name1_arr, name2_arr)
+		#corr1
+		fig = plt.figure()
+		plt.plot(x, y1, '+', markersize=1, color='0.03' ,zorder = 4)
+		plt.plot([0, v_max], [0, v_max], 'r-', zorder = 5)
+		plt.axis([0, v_max, 0, v_max])
+		plt.xlabel(obs_name, fontsize=11, fontweight='bold')
+		plt.ylabel(sim_name1, fontsize=11, fontweight='bold', ha = 'left', labelpad=15)
+		plt.tick_params(axis='y', which='both', top='off', left='off', right='off', bottom='off', labelsize=10, pad=0.25)
+		plt.tick_params(axis='x', which='both', top='off', left='off', right='off', bottom='off', labelsize=10)
+		plt.xticks(np.linspace(0, int(v_max), 3))
+		plt.yticks(np.linspace(0, int(v_max), 3))
+		fig.savefig(temp_folder+'Correlation1.png')
+		plt.close()
 		pool.map(PlotColorMesh1, arg_arr)
-
 
 def PlotColorMesh1(args):
-	PlotColorMesh(args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10], args[11])
+	PlotColorMesh(args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7])
 
-def PlotColorMesh(extend, steps, scalar_field, v_min, v_max, cmap, norm, bounds, xname, yname=None, x=None, y=None):
-	fig = plt.figure(dpi=5000)
+def PlotColorMesh(temp_folder, extend, scalar_field, cmap, norm, bounds, xname, yname=None):
+	fig = plt.figure()
 	ax = plt.subplot(111)
 	ticks_font = mpl.font_manager.FontProperties(family='Helvetica', style='normal', weight='light', stretch='normal', size='x-small')
-	plt.title(xname.upper(), fontsize = 20, fontweight = 'bold')
-	lons = np.arange(extend[0], extend[1], steps)
-	lats = np.arange(extend[2], extend[3], -1*steps)
+	lons = np.arange(extend[0], extend[1], 0.25)
+	lats = np.arange(extend[2], extend[3], -1*0.25)
 	lons, lats = np.meshgrid(lons,lats)
 	map = Basemap(projection='mill',llcrnrlat=extend[3]-0.005,urcrnrlat=extend[2]+0.005,\
             llcrnrlon=extend[0]-0.005,urcrnrlon=extend[1]+0.005,resolution='c')
@@ -113,8 +189,8 @@ def PlotColorMesh(extend, steps, scalar_field, v_min, v_max, cmap, norm, bounds,
 	if len(meridians) < 3:
 		meridians = np.array([extend[0], extend[1]])
 	map.drawmeridians(meridians,labels=[False,False,False,True], linewidth=.2, fontsize=10)
-	map.drawcoastlines(linewidth=.5, color='yellow', zorder=2)
-	map.drawcountries(linewidth=.5, color='yellow', zorder=3)
+	map.drawcoastlines(linewidth=1, color='yellow', zorder=2)
+	map.drawcountries(linewidth=.8, color='yellow', zorder=3)
 	xx, yy = map(lons, lats)
 	cs = map.pcolormesh(xx, yy, scalar_field, cmap=cmap, norm=norm, zorder = 1)
 	if yname is not None:
@@ -134,20 +210,6 @@ def PlotColorMesh(extend, steps, scalar_field, v_min, v_max, cmap, norm, bounds,
 			labels[-1] = '>'+labels[-2]
 			cb.ax.set_yticklabels(labels, ticks_font)
 			cb.ax.set_ylabel('Rain (mm)', ha = 'right', fontweight='bold')
-		axin = inset_axes(ax,width="40%",height="40%", loc=3, borderpad = 1.9)
-		axin.plot(x, y, '+', markersize=1, color='0.03' ,zorder = 4)
-		axin.plot([v_min, v_max], [v_min, v_max], 'r-', zorder = 5)
-		axin.axis([v_min, v_max, v_min, v_max])
-		axin.set_title('RAIN (mm)', fontweight='bold', fontsize=8, x=0.5, y=0.82)
-		axin.set_xlabel(xname, fontsize=7, fontweight='bold')
-		axin.set_ylabel(yname, fontsize=7, fontweight='bold', ha = 'left')
-		#axin.yaxis.set_label_coords(0, 1.08)
-		#axin.xaxis.set_label_coords(0.5, -0.154)
-		axin.tick_params(axis='y', which='both', top='off', left='off', right='off', bottom='off', labelsize=8, pad=0.25)
-		axin.tick_params(axis='x', which='both', top='off', left='off', right='off', bottom='off', labelsize=8)
-		axin.set_xticks(np.arange(0, int(v_max)+1, int(v_max)/2))
-		axin.set_yticks(np.arange(0, int(v_max)+1, int(v_max)/2))
-		axin.set_aspect('equal', adjustable='box', anchor='SW')
 	else:
 		if (extend[1] - extend[0]) > (extend[2] - extend[3]):
 			cb = map.colorbar(cs, pad='15%', location='bottom', norm=norm, ticks=bounds)
@@ -159,5 +221,5 @@ def PlotColorMesh(extend, steps, scalar_field, v_min, v_max, cmap, norm, bounds,
 			labels = [item.get_text() for item in cb.ax.get_yticklabels()]
 			cb.ax.set_yticklabels(labels, ticks_font)
 			cb.ax.set_ylabel('Rain (mm)', ha = 'right', fontweight='bold')
-	fig.savefig(xname+'.png', transparent=True)
+	fig.savefig(temp_folder+xname+'.png', transparent=True)
 	plt.close()
