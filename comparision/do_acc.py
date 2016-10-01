@@ -211,7 +211,10 @@ else:
 		lrx_arr = itertools.repeat(lrx, len(file_list))
 		list_dest_file = [temp_folder0+os.path.splitext(os.path.basename(file2))[0]+'.tif' for file2 in file_list]
 		pool.map(ClipRaster, itertools.izip(ulx_arr, uly_arr, lrx_arr, lry_arr, file_list, list_dest_file))
-		os.system("b='"+temp_folder0+userIP+".vrt'; h='"+temp_folder0+userIP+".tif'; /usr/local/epd-7.3-2-rh5-x86_64/bin/gdalbuildvrt -tr 0.25 0.25 -overwrite -separate $b "+temp_folder0+"*.tif; /mnt/t/disk2/pconnect/CHRSData/python/sum_raster.py $b $h "+dataset1+" 2>/dev/null")
+		if dataset1 == 'CCS':
+			os.system("b='"+temp_folder0+userIP+".vrt'; h='"+temp_folder0+userIP+".tif'; /usr/local/epd-7.3-2-rh5-x86_64/bin/gdalbuildvrt -overwrite -separate $b "+temp_folder0+"*.tif; /mnt/t/disk2/pconnect/CHRSData/python/sum_raster.py $b $h "+dataset1+" 2>/dev/null")
+		else:
+			os.system("b='"+temp_folder0+userIP+".vrt'; h='"+temp_folder0+userIP+".tif'; /usr/local/epd-7.3-2-rh5-x86_64/bin/gdalbuildvrt -tr 0.25 0.25 -overwrite -separate $b "+temp_folder0+"*.tif; /mnt/t/disk2/pconnect/CHRSData/python/sum_raster.py $b $h "+dataset1+" 2>/dev/null")
 		print 'done'
 	elif br_dwn[1] == 'shp':
 		ShapeArray = itertools.repeat(outShapefile, len(file_list))
@@ -219,6 +222,9 @@ else:
 		CoorArray = itertools.repeat(' '.join(p1), len(file_list))
 		list_dest_file = [temp_folder0+os.path.splitext(os.path.basename(file2))[0]+'.tif' for file2 in file_list]
 		pool.map(ClipRasterShape, itertools.izip(file_list, ShapeArray, ResArray, CoorArray,list_dest_file))
-		os.system("b='"+temp_folder0+userIP+".vrt'; h='"+temp_folder0+userIP+".tif'; /usr/local/epd-7.3-2-rh5-x86_64/bin/gdalbuildvrt -tr 0.25 0.25 -overwrite -separate $b "+temp_folder0+"*.tif; /mnt/t/disk2/pconnect/CHRSData/python/sum_raster.py $b $h "+dataset1+" 2>/dev/null")
+		if dataset1 == 'CCS':
+			os.system("b='"+temp_folder0+userIP+".vrt'; h='"+temp_folder0+userIP+".tif'; /usr/local/epd-7.3-2-rh5-x86_64/bin/gdalbuildvrt -overwrite -separate $b "+temp_folder0+"*.tif; /mnt/t/disk2/pconnect/CHRSData/python/sum_raster.py $b $h "+dataset1+" 2>/dev/null")
+		else:
+			os.system("b='"+temp_folder0+userIP+".vrt'; h='"+temp_folder0+userIP+".tif'; /usr/local/epd-7.3-2-rh5-x86_64/bin/gdalbuildvrt -tr 0.25 0.25 -overwrite -separate $b "+temp_folder0+"*.tif; /mnt/t/disk2/pconnect/CHRSData/python/sum_raster.py $b $h "+dataset1+" 2>/dev/null")
 		print 'done'
 

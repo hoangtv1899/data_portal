@@ -18,9 +18,8 @@ if dataset in ['CDR', 'PERSIANN']:
 	outDataset = driver.Create(out_file, cols, rows, 1, gdal.GDT_Float32, ['COMPRESS=LZW'])
 	type = np.float32
 elif dataset == 'CCS':
-	outDataset = driver.Create(out_file, cols, rows, 1, gdal.GDT_Int16, ['COMPRESS=LZW'])
-	type = np.int16
-	
+	outDataset = driver.Create(out_file, cols, rows, 1, gdal.GDT_Int32, ['COMPRESS=LZW'])
+	type = np.int32
 #projection
 geoTransform = ds.GetGeoTransform()
 outDataset.SetGeoTransform(geoTransform )

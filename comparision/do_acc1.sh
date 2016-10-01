@@ -30,6 +30,38 @@ yt=`echo $ymdt | cut -c3-4`
 mt=`echo $ymdt | cut -c5-6`
 dt=`echo $ymdt | cut -c7-8`
 
+size_ymdf=${#ymdf}
+if [ $size_ymdf -eq 8 ]
+then
+	time_step='daily'
+elif [ $size_ymdf -eq 6 ]
+then
+	time_step='monthly'
+elif [ $size_ymdf -eq 4 ]
+then
+	time_step='yearly'
+fi
+
+if [ $dataset = 'CDR' ]
+then
+	dataset1='Persiann_CDR'
+elif [ $dataset = 'CCS' ]
+then
+	dataset1='Persiann_CCS'
+elif [ $dataset = 'PERSIANN' ]
+then
+	dataset1='Persiann'
+fi
+
+main_dir='/mnt/t/disk3/CHRSdata/'
+h=`ls $main_dir$dataset1/$time_step/*$ymdf*.tif 2> /dev/null`
+k=`ls $main_dir$dataset1/$time_step/*$ymdt*.tif 2> /dev/null`
+
+if [ -z "$h" ] || [ -z "$k" ]
+then
+	echo "dataset is not available in the selected time range"
+	exit
+fi
 
 # for calculations need what years what yymm and what ymd prior and ymd after
 yrs=

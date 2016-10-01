@@ -1,6 +1,7 @@
 #!/usr/local/epd-7.3-2-rh5-x86_64/bin/python2.7
 
 import numpy as np
+#import scipy.io
 from collections import OrderedDict
 
 def ValidationFunction(obs, sim):
@@ -15,6 +16,14 @@ def ValidationFunction(obs, sim):
 	except:
 		simulated = sim
 		observed = obs
+	simulated = np.delete(simulated, simulated.mask==True)
+	observed = np.delete(observed, observed.mask==True)
+	print simulated.shape
+	print observed.shape
+	#get condition rain
+	#simulated = simulated[simulated>=0.1]
+	#observed = observed[observed>=0.1]
+	#begin calculation
 	HitError = simulated[np.logical_and(simulated > 0, observed > 0)] - observed[np.logical_and(simulated > 0, observed > 0)]
 	#hit bias
 	hit_bias = np.sum(HitError)
@@ -23,7 +32,7 @@ def ValidationFunction(obs, sim):
 	biasmap = np.sum(simulated)/np.sum(observed)
 	biasmap = round(biasmap, 3)
 	#Number of correct negatives
-	NoCorrNeg = np.sum(np.logical_and(simulated == 0, observed == 0))
+	NoCorrNeg = np.sum(np.logical_and(simulated <= 0, observed <= 0))
 	#Number of hit
 	simhit = simulated[np.logical_and(simulated > 0, observed > 0)]
 	NoHit = np.sum(np.logical_and(simulated > 0, observed > 0))
@@ -31,8 +40,8 @@ def ValidationFunction(obs, sim):
 	SumSimhit = np.sum(simhit)
 	SumSimhit = round(SumSimhit, 3)
 	#Number of miss
-	obsmiss = observed[np.logical_and(simulated == 0, observed > 0)]
-	NoMiss = np.sum(np.logical_and(simulated == 0, observed > 0))
+	obsmiss = observed[np.logical_and(simulated <= 0, observed > 0)]
+	NoMiss = np.sum(np.logical_and(simulated <= 0, observed > 0))
 	#Total number of miss
 	SumMiss = np.sum(obsmiss)
 	if SumMiss.data == np.array(0.0):
@@ -75,20 +84,33 @@ def ValidationFunction(obs, sim):
 		hits_rand = (NoHit+NoMiss)*(NoHit+NoFalse)/float(Tot)
 		ETS = (NoHit - hits_rand)/float(NoHit+NoMiss+NoFalse-hits_rand)
 		ETS = round(ETS, 3)
+	#
+	simulated1 = simulated[np.logical_and(simulated > 0, observed > 0)]
+	observed1 = observed[np.logical_and(simulated > 0, observed > 0)]
 	#RMSE
-	RMSE = np.sqrt(np.mean((simulated - observed)**2))
+	RMSE = np.sqrt(np.mean((simulated1 - observed1)**2))
 	RMSE = round(RMSE, 3)
 	#RMSE normalize
-	if (float(np.max(simulated) - np.min(simulated))) == 0:
-		RMSE_norm = np.Inf
+	if simulated1.size !=0:
+		if np.max(simulated1) == np.min(simulated1):
+			RMSE_norm = np.Inf
+		else:
+			RMSE_norm = RMSE/float(np.max(simulated1) - np.min(simulated1))
+		RMSE_norm = round(RMSE_norm, 3)
 	else:
-		RMSE_norm = RMSE/float(np.max(simulated) - np.min(simulated))
+		RMSE_norm = np.nan
 	#Mean absolute error
-	MAE = np.mean(np.absolute(simulated - observed))
+	MAE = np.mean(np.absolute(simulated1 - observed1))
 	MAE = round(MAE, 3)
 	#Correlation
-	corr = np.corrcoef(simulated, observed)[0,1]
-	corr = round(corr, 3)
+	corr_ma = np.corrcoef(simulated1, observed1)
+	#scipy.io.savemat('sim.mat', mdict={'sim':simulated.filled(-99)})
+	#scipy.io.savemat('obs.mat', mdict={'obs':observed.filled(-99)})
+	if corr_ma.size != 0:
+		corr = corr_ma[0,1]
+		corr = round(corr, 3)
+	else:
+		corr = np.nan
 	#result['NoSimPoints']=NoSimPoints; result['NoObsPoints']=NoObsPoints; result['biasmap']=biasmap; result['hit_bias']=hit_bias; result['NoHit']=NoHit; result['NoFalse']=NoFalse; result['NoMiss']=NoMiss; result['NoCorrNeg']=NoCorrNeg; result['SumMiss']=SumMiss; result['SumFalse']=SumFalse; result['SumSimhit']=SumSimhit; result['corr']=corr; result['MAE']=MAE; result['RMSE']=RMSE; result['POD']=POD; result['FAR']=FAR; result['BIAS']=BIAS; result['HSS']=HSS; result['HK']=HK; result['ETS']=ETS
 	#return np.array([biasmap, NoHit, NoFalse, NoMiss, SumMiss, SumFalse, SumSimhit, corr, RMSE, POD, FAR])
 	result['corr']=corr; result['MAE']=MAE; result['RMSE']=RMSE; result['RMSE normalize']=RMSE_norm; result['POD']=POD; result['FAR']=FAR; result['BIAS']=BIAS; result['HSS']=HSS; result['HK']=HK; result['ETS']=ETS 
