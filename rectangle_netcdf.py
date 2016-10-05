@@ -149,6 +149,7 @@ file_info.write("xllcorner %.3f\n" % xllcor)
 file_info.write("yllcorner %.3f\n" % yllcor)
 file_info.write("cellsize %.2f\n" % cell)
 file_info.write("NODATA_value -99\n")
+file_info.write("Unit mm\n")
 file_info.close()
 
 #create netCDF file

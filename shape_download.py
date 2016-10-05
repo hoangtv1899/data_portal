@@ -80,6 +80,7 @@ ShapeArray = itertools.repeat(outShapefile, len(list_file))
 ResArray = itertools.repeat(resolution, len(list_file))
 CoorArray = itertools.repeat(' '.join(p1), len(list_file))
 if file_type == 'Tif':
+	TypeName = 'GeoTiff'
 	list_dest_file = [tmp_f+os.path.splitext(os.path.basename(file2))[0]+'.tif' for file2 in list_file]
 	if dataset in ['CDR', 'PERSIANN']:
 		TypeArray = itertools.repeat('Float32', len(list_file))
@@ -88,6 +89,7 @@ if file_type == 'Tif':
 		TypeArray = itertools.repeat('Int16', len(list_file))
 		pool.map(ClipRaster, itertools.izip(list_file, ShapeArray, ResArray, CoorArray,list_dest_file, TypeArray))
 elif file_type == 'ArcGrid':
+	TypeName = 'ArcGrid'
 	list_dest_file1 = [tmp_f1+os.path.splitext(os.path.basename(file2))[0]+'.tif' for file2 in list_file]
 	list_dest_file = [tmp_f+os.path.splitext(os.path.basename(file2))[0]+'.asc' for file2 in list_file]
 	if dataset in ['CDR', 'PERSIANN']:
@@ -103,4 +105,27 @@ elif file_type == 'ArcGrid':
 for file in glob.iglob(outShapefile[:-4]+".*"):
 	shutil.copy(file, tmp_f)
 
+file1 = sorted(glob.glob(tmp_f+'*.*'))[0]
+ds = gdal.Open(file1)
+a = ds.ReadAsArray()
+nlat,nlon = a.shape
+b = ds.GetGeoTransform() #bbox, interval
+lon = np.arange(nlon)*b[1]+b[0]
+lat = np.arange(nlat)*b[5]+b[3]
+cell = b[1]
+xllcor = b[0]
+yllcor = b[3] + nlon*b[4] + nlat*b[5]
+
+#create info file
+file_info = open(tmp_f+'info.txt', 'w')
+file_info.write("Satellite precipitation data in "+TypeName+" format downloaded from UCI CHRS's DataPortal(chrsdata.eng.uci.edu).\n")
+file_info.write("Data domain:\n")
+file_info.write("ncols     %s\n" % nlon)
+file_info.write("nrows    %s\n" % nlat)
+file_info.write("xllcorner %.3f\n" % xllcor)
+file_info.write("yllcorner %.3f\n" % yllcor)
+file_info.write("cellsize %.2f\n" % cell)
+file_info.write("NODATA_value -99\n")
+file_info.write("Unit: mm\n")
+file_info.close()
 shutil.make_archive(outfile, format=compression, root_dir=tmp_f)

@@ -26,7 +26,30 @@ def AccPath(dataset):
 	else:
 		PathAcc = '/mnt/t/disk3/CHRSdata/Persiann'+'_'+dataset+'/'
 	return PathAcc
-		
+
+def ClipRasterPart(args):
+	ulx = args[0]
+	uly = args[1]
+	lrx = args[2]
+	lry = args[3]
+	fileIn = args[4]
+	dest_file = args[5]
+	os.system("/usr/local/epd-7.2-2-rh5-x86_64/bin/gdal_translate -q -a_nodata -99 -projwin "+ulx+" "+uly+" "+lrx+" "+lry+" -of GTiff "+fileIn+" "+dest_file+" -co COMPRESS=LZW")	
+
+def EditRaster(args):
+	ulx = args[0]
+	uly = args[1]
+	lrx = args[2]
+	lry = args[3]
+	fileIn = args[4]
+	os.system("/usr/local/epd-7.3-2-rh5-x86_64/bin/python2.7 /root/gdal-1.11.2/swig/python/scripts/gdal_edit.py -a_ullr "+ulx+" "+uly+" "+lrx+" "+lry+" "+fileIn)
+
+def MergeRaster(args):
+	dest_file_1 = args[0]
+	dest_file_2 = args[1]
+	dest_vrt = args[2]
+	temp_file = args[3]
+	os.system('/usr/local/epd-7.3-2-rh5-x86_64/bin/python2.7 /root/gdal-1.11.2/swig/python/scripts/gdal_merge.py -o '+temp_file+' '+dest_file_1+' '+dest_file_2+'; /usr/local/epd-7.3-2-rh5-x86_64/bin/gdalbuildvrt -tr 0.25 0.25 -separate '+dest_vrt+' '+temp_file)
 
 def ClipRaster(args):
 	ulx = args[0]
@@ -227,7 +250,7 @@ elif arr_len == 1:
 	sys.exit()
 
 if arr_len < 2:
-	print 'error: Not enough dataset'
+	print 'error:Not enough dataset'
 	sys.exit()
 
 pool = mp.Pool(processes = 16)
@@ -262,15 +285,51 @@ if (arr_len == 3):
 			Refvrt = temp_folder0+'Ref.vrt'
 			File1vrt = temp_folder1+'file1.vrt'
 			File2vrt = temp_folder2+'file2.vrt'
+			uly = str(extend[2])
+			ulx = str(extend[0])
+			lry = str(extend[3])
+			lrx = str(extend[1])
 			#steps to clip rectangle
 			uly_arr = [str(extend[2])]*3
 			ulx_arr = [str(extend[0])]*3
 			lry_arr = [str(extend[3])]*3
 			lrx_arr = [str(extend[1])]*3
-			RefDestFile = temp_folder0+os.path.splitext(os.path.basename(RefFile))[0]+'.tif'
-			DestFile1 = temp_folder1+os.path.splitext(os.path.basename(File1))[0]+'.tif'
-			DestFile2 = temp_folder2+os.path.splitext(os.path.basename(File2))[0]+'.tif'
-			pool.map(ClipRaster, itertools.izip(ulx_arr, uly_arr, lrx_arr, lry_arr, [RefFile, File1, File2], [RefDestFile, DestFile1, DestFile2], [Refvrt, File1vrt, File2vrt]))
+			if float(ulx) <= float(lrx):
+				uly = str(60) if float(uly) > 60 else uly
+				lry = str(-60) if float(lry) < -60 else lry
+				uly_arr = [uly]*3
+				ulx_arr = [ulx]*3
+				lry_arr = [lry]*3
+				lrx_arr = [lrx]*3
+				RefDestFile = temp_folder0+os.path.splitext(os.path.basename(RefFile))[0]+'.tif'
+				DestFile1 = temp_folder1+os.path.splitext(os.path.basename(File1))[0]+'.tif'
+				DestFile2 = temp_folder2+os.path.splitext(os.path.basename(File2))[0]+'.tif'
+				pool.map(ClipRaster, itertools.izip(ulx_arr, uly_arr, lrx_arr, lry_arr, [RefFile, File1, File2], [RefDestFile, DestFile1, DestFile2], [Refvrt, File1vrt, File2vrt]))
+			else:
+				RefDestFile_1 = temp_folder0+os.path.splitext(os.path.basename(RefFile))[0]+'_1.tif'
+				DestFile1_1 = temp_folder1+os.path.splitext(os.path.basename(File1))[0]+'_1.tif'
+				DestFile2_1 = temp_folder2+os.path.splitext(os.path.basename(File2))[0]+'_1.tif'
+				RefDestFile_2 = temp_folder0+os.path.splitext(os.path.basename(RefFile))[0]+'_2.tif'
+				DestFile1_2 = temp_folder1+os.path.splitext(os.path.basename(File1))[0]+'_2.tif'
+				DestFile2_2 = temp_folder2+os.path.splitext(os.path.basename(File2))[0]+'_2.tif'
+				ulx1 = float(ulx) - 360
+				ulx1 = str(ulx1)
+				uly = str(60) if float(uly) > 60 else uly
+				lry = str(-60) if float(lry) < -60 else lry
+				uly_arr = [uly]*3
+				ulx_arr = [ulx]*3
+				lry_arr = [lry]*3
+				lrx_arr = [lrx]*3
+				XE_arr = [ulx1]*3
+				ulx_arr1 = ['-180']*3
+				lrx_arr1 = ['180']*3
+				pool.map(ClipRasterPart, itertools.izip(ulx_arr1, uly_arr, lrx_arr, lry_arr, [RefFile, File1, File2], [RefDestFile_1, DestFile1_1, DestFile2_1]))
+				pool.map(ClipRasterPart, itertools.izip(ulx_arr, uly_arr, lrx_arr1, lry_arr, [RefFile, File1, File2], [RefDestFile_2, DestFile1_2, DestFile2_2]))
+				pool.map(EditRaster, itertools.izip(XE_arr, uly_arr, ulx_arr1, lry_arr,[RefDestFile_2, DestFile1_2, DestFile2_2]))
+				pool.map(MergeRaster, itertools.izip([RefDestFile_1, DestFile1_1, DestFile2_1], [RefDestFile_2, DestFile1_2, DestFile2_2], [Refvrt, File1vrt, File2vrt], [temp_folder0+os.path.splitext(os.path.basename(RefFile))[0]+'_sum.tif', temp_folder1+os.path.splitext(os.path.basename(File1))[0]+'_sum.tif', temp_folder2+os.path.splitext(os.path.basename(File2))[0]+'_sum.tif']))
+				RefPath = Refvrt
+				FilePath1 = File1vrt
+				FilePath2 = File2vrt
 		else:
 			if DataRef == 'CCS':
 				os.system("/usr/local/epd-7.3-2-rh5-x86_64/bin/gdalbuildvrt -tr 0.25 0.25 -overwrite -separate "+Refvrt+" "+RefPath)
@@ -393,14 +452,49 @@ else:
 			File2 = glob.glob(FilePath2+'*'+start_date+'*.tif')[0]
 			File1vrt = temp_folder1+'file1.vrt'
 			File2vrt = temp_folder2+'file2.vrt'
+			uly = str(extend[2])
+			ulx = str(extend[0])
+			lry = str(extend[3])
+			lrx = str(extend[1])
 			#steps to clip rectangle
 			uly_arr = [str(extend[2])]*2
 			ulx_arr = [str(extend[0])]*2
 			lry_arr = [str(extend[3])]*2
 			lrx_arr = [str(extend[1])]*2
-			DestFile1 = temp_folder1+os.path.splitext(os.path.basename(File1))[0]+'.tif'
-			DestFile2 = temp_folder2+os.path.splitext(os.path.basename(File2))[0]+'.tif'
-			pool.map(ClipRaster, itertools.izip(ulx_arr, uly_arr, lrx_arr, lry_arr, [File1, File2], [DestFile1, DestFile2], [File1vrt, File2vrt]))
+			if float(ulx) <= float(lrx):
+				uly = str(60) if float(uly) > 60 else uly
+				lry = str(-60) if float(lry) < -60 else lry
+				uly_arr = [uly]*2
+				ulx_arr = [ulx]*2
+				lry_arr = [lry]*2
+				lrx_arr = [lrx]*2
+				DestFile1 = temp_folder1+os.path.splitext(os.path.basename(File1))[0]+'.tif'
+				DestFile2 = temp_folder2+os.path.splitext(os.path.basename(File2))[0]+'.tif'
+				pool.map(ClipRaster, itertools.izip(ulx_arr, uly_arr, lrx_arr, lry_arr, [File1, File2], [DestFile1, DestFile2], [File1vrt, File2vrt]))
+			else:
+				DestFile1_1 = temp_folder1+os.path.splitext(os.path.basename(File1))[0]+'_1.tif'
+				DestFile2_1 = temp_folder2+os.path.splitext(os.path.basename(File2))[0]+'_1.tif'
+				DestFile1_2 = temp_folder1+os.path.splitext(os.path.basename(File1))[0]+'_2.tif'
+				DestFile2_2 = temp_folder2+os.path.splitext(os.path.basename(File2))[0]+'_2.tif'
+				lrx1 = float(lrx) + 360
+				lrx1 = str(lrx1)
+				ulx1 = float(ulx) - 360
+				ulx1 = str(ulx1)
+				uly = str(60) if float(uly) > 60 else uly
+				lry = str(-60) if float(lry) < -60 else lry
+				uly_arr = [uly]*2
+				ulx_arr = [ulx]*2
+				lry_arr = [lry]*2
+				lrx_arr = [lrx]*2
+				XE_arr = [ulx1]*3
+				ulx_arr1 = ['-180']*2
+				lrx_arr1 = ['180']*2
+				pool.map(ClipRasterPart, itertools.izip(ulx_arr1, uly_arr, lrx_arr, lry_arr, [File1, File2], [DestFile1_1, DestFile2_1]))
+				pool.map(ClipRasterPart, itertools.izip(ulx_arr, uly_arr, lrx_arr1, lry_arr, [File1, File2], [DestFile1_2, DestFile2_2]))
+				pool.map(EditRaster, itertools.izip(XE_arr, uly_arr, ulx_arr1, lry_arr,[DestFile1_2, DestFile2_2]))
+				pool.map(MergeRaster, itertools.izip([DestFile1_1, DestFile2_1], [DestFile1_2, DestFile2_2], [File1vrt, File2vrt], [temp_folder1+os.path.splitext(os.path.basename(File1))[0]+'_sum.tif', temp_folder2+os.path.splitext(os.path.basename(File2))[0]+'_sum.tif']))
+				FilePath1 = File1vrt
+				FilePath2 = File2vrt
 		else:
 			if Data1 == 'CCS':
 				File1vrt = temp_folder1+'file1.vrt'
@@ -448,7 +542,7 @@ else:
 				os.system("/usr/local/epd-7.3-2-rh5-x86_64/bin/gdalbuildvrt -tr 0.25 0.25 -overwrite -separate "+File2vrt+" "+FilePath2)
 				File1vrt = FilePath1
 			time_step = 'monthly'
-			shape_in = glob.glob(temp_folder0+'*.shp')[0]
+			shape_in = glob.glob(temp_folder1+'*.shp')[0]
 			shp_in = ogr.Open(shape_in)
 			shp_layer = shp_in.GetLayer()
 			shp_extents = shp_layer.GetExtent()
@@ -480,13 +574,12 @@ else:
 	result_2 = np.array([])
 
 #plot result images
-driver = gdal.GetDriverByName('GTiff')
 if len(result_2) != 0:
 	PlotMap2(ref_arr_mask, DataRef, obs_arr1_mask, Data1, time_step, temp_folder, obs_arr2_mask, Data2)
 	#export to rasters
-	os.system("/usr/local/epd-7.2-2-rh5-x86_64/bin/gdal_translate -q -of GTiff -ot Int16 -co COMPRESS=LZW "+Refvrt+" "+temp_folder+"File1.tif")
-	os.system("/usr/local/epd-7.2-2-rh5-x86_64/bin/gdal_translate -q -of GTiff -ot Int16 -co COMPRESS=LZW "+File1vrt+" "+temp_folder+"File2.tif")
-	os.system("/usr/local/epd-7.2-2-rh5-x86_64/bin/gdal_translate -q -of GTiff -ot Int16 -co COMPRESS=LZW "+File2vrt+" "+temp_folder+"File3.tif")
+	os.system("/usr/local/epd-7.3-2-rh5-x86_64/bin/gdal_translate -a_nodata -99 -q -of GTiff -ot Int16 -co COMPRESS=LZW "+Refvrt+" "+temp_folder+"File1.tif")
+	os.system("/usr/local/epd-7.3-2-rh5-x86_64/bin/gdal_translate -a_nodata -99 -q -of GTiff -ot Int16 -co COMPRESS=LZW "+File1vrt+" "+temp_folder+"File2.tif")
+	os.system("/usr/local/epd-7.3-2-rh5-x86_64/bin/gdal_translate -a_nodata -99 -q -of GTiff -ot Int16 -co COMPRESS=LZW "+File2vrt+" "+temp_folder+"File3.tif")
 	RasterCal(temp_folder+"File1.tif", temp_folder+"File2.tif", temp_folder+"Diff1.tif", temp_folder0)
 	RasterCal(temp_folder+"File1.tif", temp_folder+"File3.tif", temp_folder+"Diff2.tif", temp_folder0)
 	RasterCal(temp_folder+"File2.tif", temp_folder+"File3.tif", temp_folder+"Diff3.tif", temp_folder0)
@@ -511,10 +604,11 @@ if len(result_2) != 0:
 else:
 	PlotMap2(obs_arr2_mask, Data2, obs_arr1_mask, Data1, time_step, temp_folder)
 	#export to rasters
-	os.system("/usr/local/epd-7.2-2-rh5-x86_64/bin/gdal_translate -q -of GTiff -ot Int16 -co COMPRESS=LZW "+File1vrt+" "+temp_folder+"File1.tif")
-	os.system("/usr/local/epd-7.2-2-rh5-x86_64/bin/gdal_translate -q -of GTiff -ot Int16 -co COMPRESS=LZW "+File2vrt+" "+temp_folder+"File2.tif")
+	os.system("/usr/local/epd-7.2-2-rh5-x86_64/bin/gdal_translate -a_nodata -99 -q -of GTiff -ot Int16 -co COMPRESS=LZW "+File1vrt+" "+temp_folder+"File1.tif")
+	os.system("/usr/local/epd-7.2-2-rh5-x86_64/bin/gdal_translate -a_nodata -99 -q -of GTiff -ot Int16 -co COMPRESS=LZW "+File2vrt+" "+temp_folder+"File2.tif")
 	RasterCal(temp_folder+"File1.tif", temp_folder+"File2.tif", temp_folder+"Diff1.tif", temp_folder0)
 	if domain != 'wholemap':
+		#print 'DestFile1 '+DestFile1
 		if Data1 == 'CCS':
 			try:
 				os.system("cp "+DestFile1+" "+temp_folder+"File1.tif")

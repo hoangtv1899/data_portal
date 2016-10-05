@@ -42,13 +42,16 @@ then
 	time_step='yearly'
 fi
 
-if [ $dataset = 'CDR' ]
+dataset0=`echo $dataset | awk '{print $1 }'`
+dataset01=`echo "${dataset0//\"}"`
+
+if [ $dataset01 = 'CDR' ]
 then
 	dataset1='Persiann_CDR'
-elif [ $dataset = 'CCS' ]
+elif [ $dataset01 = 'CCS' ]
 then
 	dataset1='Persiann_CCS'
-elif [ $dataset = 'PERSIANN' ]
+elif [ $dataset01 = 'PERSIANN' ]
 then
 	dataset1='Persiann'
 fi
@@ -76,8 +79,8 @@ then
 	if [ $mf$df = '0101' -a $mt$dt = '1231' ]
 	then
 		yrs=$yf
-		echo do da: mth: yrs: $yrs dp:
-		echo /mnt/t/disk2/pconnect/CHRSData/python/comparision/do_acc.py "$dataset" $userIP $currentDateTime "ha: da: $da mth: $mth yrs: $yrs dp: $dp hp: "
+		#echo do da: mth: yrs: $yrs dp:
+		#echo /mnt/t/disk2/pconnect/CHRSData/python/comparision/do_acc.py "$dataset" $userIP $currentDateTime "ha: da: $da mth: $mth yrs: $yrs dp: $dp hp: "
 		/mnt/t/disk2/pconnect/CHRSData/python/comparision/do_acc.py "$dataset" $userIP $currentDateTime "ha: da: $da mth: $mth yrs: $yrs dp: $dp hp: "
 		exit
 	elif [ $mf -eq $mt ]
@@ -86,8 +89,8 @@ then
 		if [ $df -eq 1 -a $dt -eq $nd ]
 		then
 			mth=$yf$mf
-			echo do mths: $mth
-			echo /mnt/t/disk2/pconnect/CHRSData/python/comparision/do_acc.py "$dataset" $userIP $currentDateTime "ha: $ha da: $da mth: $mth yrs: $yrs dp: $dp hp: $hp"
+			#echo do mths: $mth
+			#echo /mnt/t/disk2/pconnect/CHRSData/python/comparision/do_acc.py "$dataset" $userIP $currentDateTime "ha: $ha da: $da mth: $mth yrs: $yrs dp: $dp hp: $hp"
 			/mnt/t/disk2/pconnect/CHRSData/python/comparision/do_acc.py "$dataset" $userIP $currentDateTime "ha: $ha da: $da mth: $mth yrs: $yrs dp: $dp hp: $hp"
 			exit
 		else  # less than month
@@ -101,8 +104,8 @@ then
 					wkdf=0$wkdf
 				fi
 			done			
-			echo do da: $da
-			echo /mnt/t/disk2/pconnect/CHRSData/python/comparision/do_acc.py "$dataset" $userIP $currentDateTime "ha: da: $da mth: $mth yrs: $yrs dp: $dp hp: "
+			#echo do da: $da
+			#echo /mnt/t/disk2/pconnect/CHRSData/python/comparision/do_acc.py "$dataset" $userIP $currentDateTime "ha: da: $da mth: $mth yrs: $yrs dp: $dp hp: "
 			/mnt/t/disk2/pconnect/CHRSData/python/comparision/do_acc.py "$dataset" $userIP $currentDateTime "ha: da: $da mth: $mth yrs: $yrs dp: $dp hp: "
 			exit
 		fi
@@ -152,8 +155,8 @@ then
 				fi
 			done
 		fi
-		echo do da: $da mth: $mth  dp: $dp
-		echo /mnt/t/disk2/pconnect/CHRSData/python/comparision/do_acc.py "$dataset" $userIP $currentDateTime "ha: da: $da mth: $mth yrs: $yrs dp: $dp hp: "
+		#echo do da: $da mth: $mth  dp: $dp
+		#echo /mnt/t/disk2/pconnect/CHRSData/python/comparision/do_acc.py "$dataset" $userIP $currentDateTime "ha: da: $da mth: $mth yrs: $yrs dp: $dp hp: "
 		/mnt/t/disk2/pconnect/CHRSData/python/comparision/do_acc.py "$dataset" $userIP $currentDateTime "ha: da: $da mth: $mth yrs: $yrs dp: $dp hp: "
 		exit
 	fi
@@ -220,8 +223,8 @@ else
 	if [ $mt$dt = "1231" ]
 	then
 		yrs="$yrs $yt"
-		echo do  da: $da yrs: $yrs mth: $mth
-		echo /mnt/t/disk2/pconnect/CHRSData/python/comparision/do_acc.py "$dataset" $userIP $currentDateTime "ha: da: $da mth: $mth yrs: $yrs dp: $dp hp: "
+		#echo do  da: $da yrs: $yrs mth: $mth
+		#echo /mnt/t/disk2/pconnect/CHRSData/python/comparision/do_acc.py "$dataset" $userIP $currentDateTime "ha: da: $da mth: $mth yrs: $yrs dp: $dp hp: "
 		/mnt/t/disk2/pconnect/CHRSData/python/comparision/do_acc.py "$dataset" $userIP $currentDateTime "ha: da: $da mth: $mth yrs: $yrs dp: $dp hp: "
 		exit
 	else
@@ -263,7 +266,7 @@ else
 	fi
 fi
 
-echo do da: $da mth: $mth yrs: $yrs dp: $dp
-echo /mnt/t/disk2/pconnect/CHRSData/python/comparision/do_acc.py "$dataset" $userIP $currentDateTime "ha: da: $da mth: $mth yrs: $yrs dp: $dp hp: "
+#echo do da: $da mth: $mth yrs: $yrs dp: $dp
+#echo /mnt/t/disk2/pconnect/CHRSData/python/comparision/do_acc.py "$dataset" $userIP $currentDateTime "ha: da: $da mth: $mth yrs: $yrs dp: $dp hp: "
 /mnt/t/disk2/pconnect/CHRSData/python/comparision/do_acc.py "$dataset" $userIP $currentDateTime "ha: da: $da mth: $mth yrs: $yrs dp: $dp hp: "
 exit
