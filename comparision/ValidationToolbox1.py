@@ -69,6 +69,35 @@ def ClipRasterShape(args):
 	dest_vrt = args[4]
 	os.system("/usr/local/epd-7.3-2-rh5-x86_64/bin/gdalwarp -overwrite -dstnodata -99 -q -cutline "+outShapefile+" -te "+p1+" -of GTiff "+fileIn+" "+dest_file+"; /usr/local/epd-7.3-2-rh5-x86_64/bin/gdalbuildvrt -tr 0.25 0.25 -separate "+dest_vrt+" "+dest_file)
 
+def CompareArray(Array1, Array2, Array3):
+	if np.allclose(Array1.shape, Array2.shape):
+		if np.allclose(Array2.shape, Array3.shape):
+			return Array1, Array2, Array3
+		else:
+			if np.any(Array2.shape> Array3.shape):
+				Array2 = Array2[:Array3.shape[0],:Array3.shape[1]]
+				Array1 = Array1[:Array3.shape[0],:Array3.shape[1]]
+				return Array1, Array2, Array3
+			else:
+				Array3 = Array3[:Array2.shape[0],:Array2.shape[1]]
+				return Array1, Array2, Array3
+	elif np.allclose(Array1.shape, Array3.shape):
+		if np.any(Array3.shape> Array2.shape):
+			Array3 = Array3[:Array2.shape[0],:Array2.shape[1]]
+			Array1 = Array1[:Array2.shape[0],:Array2.shape[1]]
+			return Array1, Array2, Array3
+		else:
+			Array2 = Array2[:Array3.shape[0],:Array3.shape[1]]
+			return Array1, Array2, Array3
+	elif np.allclose(Array2.shape, Array3.shape):
+		if np.any(Array3.shape> Array1.shape):
+			Array3 = Array3[:Array1.shape[0],:Array1.shape[1]]
+			Array2 = Array2[:Array1.shape[0],:Array1.shape[1]]
+			return Array1, Array2, Array3
+		else:
+			Array1 = Array1[:Array3.shape[0],:Array3.shape[1]]
+			return Array1, Array2, Array3
+
 def SpaTempRes(dataset, time_step, start_date, end_date, userIP, curr_str, domain, temp_folder0, temp_folder1, temp_folder2):
 	if dataset == 'CDR':
 		TempResSet = ['customized', 'daily', 'monthly', 'yearly']
@@ -121,6 +150,12 @@ def SpaTempRes(dataset, time_step, start_date, end_date, userIP, curr_str, domai
 	return TempResSet, bpath
 
 def RasterCal(Ras1, Ras2, OutDiffFile, temp_folder0):
+	Ras1_size=' '.join([str(xk) for xk in gdal.Open(Ras1).ReadAsArray().shape][::-1])
+	Ras2_size=' '.join([str(xk) for xk in gdal.Open(Ras2).ReadAsArray().shape][::-1])
+	if Ras1_size != Ras2_size:
+		Ras2_temp = temp_folder0+'Ras2_temp.tif'
+		os.system("/usr/local/epd-7.2-2-rh5-x86_64/bin/gdalwarp -q -overwrite -srcnodata -99 -ts "+Ras1_size+" "+Ras2+" "+Ras2_temp)
+		Ras2 = Ras2_temp
 	os.system("/mnt/t/disk2/pconnect/CHRSData/python/gdal_calc.py --overwrite -A "+Ras2+" -B "+Ras1+" --calc=\"numpy.around(100*(A-B)/B)\" --NoDataValue=-9999 --type='Int16' --outfile "+temp_folder0+"TempRas1.tif")
 	os.system("/mnt/t/disk2/pconnect/CHRSData/python/gdal_calc.py --overwrite -A "+temp_folder0+"TempRas1.tif --calc=\"(A*([(A!=32767) & (A!=-32768)])-9999*(A==32767)-9999*(A==-32768))[0,:,:]\" --NoDataValue=-9999 --type='Int16' --outfile "+temp_folder0+"TempRas2.tif")
 	os.system("/usr/local/epd-7.2-2-rh5-x86_64/bin/gdal_translate -q -a_nodata -9999 -of GTiff -co COMPRESS=LZW "+temp_folder0+"TempRas2.tif "+OutDiffFile)
@@ -212,7 +247,7 @@ else:
 	elif len(start_date) == 4:
 		time_step1 = 'yearly/'
 	if DataRef == 'CDR':
-		RefPath_acc = '/mnt/t/disk3/CHRSdata/Perisann_CDR'
+		RefPath_acc = '/mnt/t/disk3/CHRSdata/Persiann_CDR'
 	RefPath_acc = AccPath(DataRef)
 	FilePath1_acc = AccPath(Data1)
 	FilePath2_acc = AccPath(Data2)
@@ -290,10 +325,6 @@ if (arr_len == 3):
 			lry = str(extend[3])
 			lrx = str(extend[1])
 			#steps to clip rectangle
-			uly_arr = [str(extend[2])]*3
-			ulx_arr = [str(extend[0])]*3
-			lry_arr = [str(extend[3])]*3
-			lrx_arr = [str(extend[1])]*3
 			if float(ulx) <= float(lrx):
 				uly = str(60) if float(uly) > 60 else uly
 				lry = str(-60) if float(lry) < -60 else lry
@@ -402,9 +433,13 @@ if (arr_len == 3):
 				ymax1 = 60
 			p = [xmin1, ymin1, xmax1, ymax1]
 			extend = [xmin1, xmax1, ymax1, ymin1]
-	ref_arr = gdal.Open(Refvrt).ReadAsArray()
-	obs_arr1 = gdal.Open(File1vrt).ReadAsArray()
-	obs_arr2 = gdal.Open(File2vrt).ReadAsArray()
+	ds0 = gdal.Open(Refvrt)
+	ds1 = gdal.Open(File1vrt)
+	ds2 = gdal.Open(File2vrt)
+	ref_arr = ds0.ReadAsArray()
+	obs_arr1 = ds1.ReadAsArray()
+	obs_arr2 = ds2.ReadAsArray()
+	ref_arr, obs_arr1, obs_arr2 = CompareArray(ref_arr, obs_arr1, obs_arr2)
 	#Masking data
 	ref_arr_mask = np.ma.masked_where(ref_arr==-99, ref_arr)
 	ref_arr_mask[ref_arr_mask <0.1] = 0
@@ -457,10 +492,6 @@ else:
 			lry = str(extend[3])
 			lrx = str(extend[1])
 			#steps to clip rectangle
-			uly_arr = [str(extend[2])]*2
-			ulx_arr = [str(extend[0])]*2
-			lry_arr = [str(extend[3])]*2
-			lrx_arr = [str(extend[1])]*2
 			if float(ulx) <= float(lrx):
 				uly = str(60) if float(uly) > 60 else uly
 				lry = str(-60) if float(lry) < -60 else lry
@@ -555,6 +586,11 @@ else:
 			extend = [xmin1, xmax1, ymax1, ymin1]
 	obs_arr1 = gdal.Open(File1vrt).ReadAsArray()
 	obs_arr2 = gdal.Open(File2vrt).ReadAsArray()
+	if not np.allclose(obs_arr1.shape, obs_arr2.shape):
+		if np.any(obs_arr1.shape > obs_arr2.shape):
+			obs_arr1 = obs_arr1[:obs_arr2.shape[0],:obs_arr2.shape[1]]
+		else:
+			obs_arr2 = obs_arr2[:obs_arr1.shape[0],:obs_arr1.shape[1]]
 	#Masking data
 	obs_arr1_mask = np.ma.masked_where(obs_arr1==-99, obs_arr1)
 	obs_arr1_mask[obs_arr1_mask <0.1] = 0
@@ -580,6 +616,7 @@ if len(result_2) != 0:
 	os.system("/usr/local/epd-7.3-2-rh5-x86_64/bin/gdal_translate -a_nodata -99 -q -of GTiff -ot Int16 -co COMPRESS=LZW "+Refvrt+" "+temp_folder+"File1.tif")
 	os.system("/usr/local/epd-7.3-2-rh5-x86_64/bin/gdal_translate -a_nodata -99 -q -of GTiff -ot Int16 -co COMPRESS=LZW "+File1vrt+" "+temp_folder+"File2.tif")
 	os.system("/usr/local/epd-7.3-2-rh5-x86_64/bin/gdal_translate -a_nodata -99 -q -of GTiff -ot Int16 -co COMPRESS=LZW "+File2vrt+" "+temp_folder+"File3.tif")
+	print 'RasterCal'
 	RasterCal(temp_folder+"File1.tif", temp_folder+"File2.tif", temp_folder+"Diff1.tif", temp_folder0)
 	RasterCal(temp_folder+"File1.tif", temp_folder+"File3.tif", temp_folder+"Diff2.tif", temp_folder0)
 	RasterCal(temp_folder+"File2.tif", temp_folder+"File3.tif", temp_folder+"Diff3.tif", temp_folder0)
