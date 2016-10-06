@@ -74,25 +74,40 @@ def CompareArray(Array1, Array2, Array3):
 		if np.allclose(Array2.shape, Array3.shape):
 			return Array1, Array2, Array3
 		else:
-			if np.any(Array2.shape> Array3.shape):
+			if (Array2.shape[0]> Array3.shape[0]) and (Array2.shape[1]> Array3.shape[1]):
 				Array2 = Array2[:Array3.shape[0],:Array3.shape[1]]
 				Array1 = Array1[:Array3.shape[0],:Array3.shape[1]]
+				return Array1, Array2, Array3
+			elif (Array2.shape[0]> Array3.shape[0]) and (Array2.shape[1]< Array3.shape[1]):
+				Array2 = Array2[:Array3.shape[0],:]
+				Array1 = Array1[:Array3.shape[0],:]
+				Array3 = Array3[:,:Array2.shape[1]]
 				return Array1, Array2, Array3
 			else:
 				Array3 = Array3[:Array2.shape[0],:Array2.shape[1]]
 				return Array1, Array2, Array3
 	elif np.allclose(Array1.shape, Array3.shape):
-		if np.any(Array3.shape> Array2.shape):
+		if (Array3.shape[0]> Array2.shape[0]) and (Array3.shape[1]> Array2.shape[1]):
 			Array3 = Array3[:Array2.shape[0],:Array2.shape[1]]
 			Array1 = Array1[:Array2.shape[0],:Array2.shape[1]]
+			return Array1, Array2, Array3
+		elif (Array3.shape[0]> Array2.shape[0]) and (Array3.shape[1]< Array2.shape[1]):
+			Array3 = Array3[:Array2.shape[0],:]
+			Array1 = Array1[:Array2.shape[0],:]
+			Array2 = Array2[:,:Array3.shape[1]]
 			return Array1, Array2, Array3
 		else:
 			Array2 = Array2[:Array3.shape[0],:Array3.shape[1]]
 			return Array1, Array2, Array3
 	elif np.allclose(Array2.shape, Array3.shape):
-		if np.any(Array3.shape> Array1.shape):
+		if (Array3.shape[0]> Array1.shape[0]) and (Array3.shape[1]> Array1.shape[1]):
 			Array3 = Array3[:Array1.shape[0],:Array1.shape[1]]
 			Array2 = Array2[:Array1.shape[0],:Array1.shape[1]]
+			return Array1, Array2, Array3
+		elif (Array3.shape[0]> Array1.shape[0]) and (Array3.shape[1]< Array1.shape[1]):
+			Array3 = Array3[:Array1.shape[0],:Array1.shape[1]]
+			Array2 = Array2[:Array1.shape[0],:Array1.shape[1]]
+			Array1 = Array1[:,:Array2.shape[1]]
 			return Array1, Array2, Array3
 		else:
 			Array1 = Array1[:Array3.shape[0],:Array3.shape[1]]
@@ -587,8 +602,11 @@ else:
 	obs_arr1 = gdal.Open(File1vrt).ReadAsArray()
 	obs_arr2 = gdal.Open(File2vrt).ReadAsArray()
 	if not np.allclose(obs_arr1.shape, obs_arr2.shape):
-		if np.any(obs_arr1.shape > obs_arr2.shape):
+		if (obs_arr1.shape[0] > obs_arr2.shape[0]) and (obs_arr1.shape[1] > obs_arr2.shape[1]):
 			obs_arr1 = obs_arr1[:obs_arr2.shape[0],:obs_arr2.shape[1]]
+		elif (obs_arr1.shape[0] > obs_arr2.shape[0]) and (obs_arr1.shape[1] < obs_arr2.shape[1]):
+			obs_arr1 = obs_arr1[:obs_arr2.shape[0],:]
+			obs_arr2 = obs_arr2[:,:obs_arr1.shape[2]]
 		else:
 			obs_arr2 = obs_arr2[:obs_arr1.shape[0],:obs_arr1.shape[1]]
 	#Masking data
