@@ -134,9 +134,14 @@ nco = Dataset(outfile,'w',clobber=True)
 
 # chunking is optional, but can improve access a lot: 
 # (see: http://www.unidata.ucar.edu/blogs/developer/entry/chunking_data_choosing_shapes)
-chunk_lon=16
-chunk_lat=16
-chunk_time=12
+if 'basins_l4_new.shp' in shapefile.split('/'):
+	chunk_lon=8
+	chunk_lat=8
+	chunk_time=12
+else:
+	chunk_lon=16
+	chunk_lat=16
+	chunk_time=12
 
 # create dimensions, variables and attributes:
 nco.createDimension('lon',nlon)

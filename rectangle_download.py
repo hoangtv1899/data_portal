@@ -75,7 +75,7 @@ elif dataset in ['CCS', 'PERSIANN']:
 
 pool = multiprocessing.Pool(processes = 4)
 list_file = [file1.replace('\n','') for file1 in os.popen('ls '+path_to_file).readlines()]
-if float(ulx) <= float(lrx):
+if ((float(ulx) <= float(lrx)) or (np.abs(ulx1-lrx1) < 2*resolution)) :
 	uly = str(lat) if float(uly) > lat else uly
 	lry = str(-lat) if float(lry) < -lat else lry
 	uly_arr = itertools.repeat(uly, len(list_file))

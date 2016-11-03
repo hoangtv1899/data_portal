@@ -100,14 +100,14 @@ elif file_type == 'ArcGrid':
 		pool.map(ClipRaster, itertools.izip(list_file, ShapeArray, ResArray, CoorArray,list_dest_file1, TypeArray))
 	dataset_arr = itertools.repeat(dataset, len(list_dest_file))
 	pool.map(AscFormat, itertools.izip(list_dest_file1, list_dest_file, dataset_arr))
-	shutil.rmtree(tmp_f1)
-
-for file in glob.iglob(outShapefile[:-4]+".*"):
-	shutil.copy(file, tmp_f)
 
 file1 = sorted(glob.glob(tmp_f+'*.*'))[0]
 ds = gdal.Open(file1)
-a = ds.ReadAsArray()
+try:
+	a = ds.ReadAsArray()
+except:
+	print 'error: selected region is too small.'
+	sys.exit()
 nlat,nlon = a.shape
 b = ds.GetGeoTransform() #bbox, interval
 lon = np.arange(nlon)*b[1]+b[0]
@@ -128,4 +128,8 @@ file_info.write("cellsize %.2f\n" % cell)
 file_info.write("NODATA_value -99\n")
 file_info.write("Unit: mm\n")
 file_info.close()
+
+for file in glob.iglob(outShapefile[:-4]+".*"):
+	shutil.copy(file, tmp_f)
+
 shutil.make_archive(outfile, format=compression, root_dir=tmp_f)

@@ -81,7 +81,7 @@ elif dataset in ['CCS', 'PERSIANN']:
 	
 pool = multiprocessing.Pool(processes = 4)
 list_file = [file1.replace('\n','') for file1 in os.popen('ls '+path_to_file).readlines()]
-if float(ulx) <= float(lrx):
+if ((float(ulx) <= float(lrx)) or (np.abs(ulx1-lrx1) < 2*resolution)) :
 	uly = str(lat) if float(uly) > lat else uly
 	lry = str(-lat) if float(lry) < -lat else lry
 	uly_arr = itertools.repeat(uly, len(list_file))
@@ -130,7 +130,11 @@ else:
 file1 = sorted(glob.glob(temp_folder0+'*.tif'))[0]
 
 ds = gdal.Open(file1)
-a = ds.ReadAsArray()
+try:
+	a = ds.ReadAsArray()
+except:
+	print 'error: selected region is too small.'
+	sys.exit()
 nlat,nlon = np.shape(a)
 b = ds.GetGeoTransform() #bbox, interval
 lon = np.arange(nlon)*b[1]+b[0]

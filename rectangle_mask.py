@@ -35,7 +35,13 @@ uly = str(math.floor(uly1/geoinformation[1])*geoinformation[1])
 lrx = str(math.floor(lrx1/geoinformation[1])*geoinformation[1])
 lry = str(math.ceil(lry1/geoinformation[1])*geoinformation[1])
 
-if float(ulx) <= float(lrx):
+#if float(lrx) in [float(ulx), float(ulx)-geoinformation[1]]:
+#	ulx = str(float(lrx)-geoinformation[1])
+
+#if float(lry) in [float(uly), float(uly)+geoinformation[1]]:
+#	uly = str(float(lry)+geoinformation[1])
+
+if ((float(ulx) <= float(lrx)) or (np.abs(ulx1-lrx1) < 2*geoinformation[1])) :
 	uly = str(lat) if float(uly) > lat else uly
 	lry = str(-lat) if float(lry) < -lat else lry
 	command = '/usr/local/epd-7.2-2-rh5-x86_64/bin/gdal_translate -a_nodata -99 -projwin '+ulx+' '+uly+' '+lrx+' '+lry+' -of GTiff '+infile+' '+outfile+' -co COMPRESS=LZW'
@@ -63,9 +69,13 @@ else:
 	os.remove(temp_file2)
 	os.remove(temp_file3)
 im = gdal.Open(outfile)
-array = im.ReadAsArray()
-array = array[array != -99]
-print "max: %.2f" % array.max()
-print "min: %.2f" % array.min()
-print "mean: %.2f" % array.mean()
-print "median: %.2f" % np.median(array)
+try:
+	array = im.ReadAsArray()
+	array = array[array != -99]
+	print "max: %.2f" % array.max()
+	print "min: %.2f" % array.min()
+	print "mean: %.2f" % array.mean()
+	print "median: %.2f" % np.median(array)
+except:
+	print 'error:Selected region is too small.'
+	sys.exit()

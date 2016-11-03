@@ -198,9 +198,9 @@ def RasterCal(Ras1, Ras2, OutDiffFile, temp_folder0):
 		Ras2_temp = temp_folder0+'Ras2_temp.tif'
 		os.system("/usr/local/epd-7.2-2-rh5-x86_64/bin/gdalwarp -q -overwrite -srcnodata -99 -ts "+Ras1_size+" "+Ras2+" "+Ras2_temp)
 		Ras2 = Ras2_temp
-	os.system("/mnt/t/disk2/pconnect/CHRSData/python/gdal_calc.py --overwrite -A "+Ras2+" -B "+Ras1+" --calc=\"numpy.around(100*(A-B)/B)\" --NoDataValue=-9999 --type='Int16' --outfile "+temp_folder0+"TempRas1.tif")
-	os.system("/mnt/t/disk2/pconnect/CHRSData/python/gdal_calc.py --overwrite -A "+temp_folder0+"TempRas1.tif --calc=\"(A*([(A!=32767) & (A!=-32768)])-9999*(A==32767)-9999*(A==-32768))[0,:,:]\" --NoDataValue=-9999 --type='Int16' --outfile "+temp_folder0+"TempRas2.tif")
-	os.system("/usr/local/epd-7.2-2-rh5-x86_64/bin/gdal_translate -q -a_nodata -9999 -of GTiff -co COMPRESS=LZW "+temp_folder0+"TempRas2.tif "+OutDiffFile)
+	os.system("/mnt/t/disk2/pconnect/CHRSData/python/gdal_calc.py --overwrite -A "+Ras2+" -B "+Ras1+" --calc=A-B --NoDataValue=-9999 --type='Int16' --outfile "+temp_folder0+"TempRas1.tif")
+	#os.system("/mnt/t/disk2/pconnect/CHRSData/python/gdal_calc.py --overwrite -A "+temp_folder0+"TempRas1.tif --calc=\"(A*([(A!=32767) & (A!=-32768)])-9999*(A==32767)-9999*(A==-32768))[0,:,:]\" --NoDataValue=-9999 --type='Int16' --outfile "+temp_folder0+"TempRas2.tif")
+	os.system("/usr/local/epd-7.2-2-rh5-x86_64/bin/gdal_translate -q -a_nodata -9999 -of GTiff -co COMPRESS=LZW "+temp_folder0+"TempRas1.tif "+OutDiffFile)
 
 curr_str = sys.argv[1]
 userIP = sys.argv[2]
@@ -674,17 +674,17 @@ if len(result_2) != 0:
 	RasterCal(temp_folder+"File1.tif", temp_folder+"File3.tif", temp_folder+"Diff2.tif", temp_folder0)
 	RasterCal(temp_folder+"File2.tif", temp_folder+"File3.tif", temp_folder+"Diff3.tif", temp_folder0)
 	if domain != 'wholemap':
-		if DataRef == 'CCS':
+		if (DataRef == 'CCS' and os.path.splitext(RefPath)[1] != '.vrt'):
 			try:
 				os.system("cp "+RefDestFile+" "+temp_folder+"File1.tif")
 			except:
 				os.system("cp "+RefPath+" "+temp_folder+"File1.tif")
-		elif Data1 == 'CCS':
+		elif (Data1 == 'CCS' and os.path.splitext(FilePath1)[1] != '.vrt'):
 			try:
 				os.system("cp "+DestFile1+" "+temp_folder+"File2.tif")
 			except:
 				os.system("cp "+FilePath1+" "+temp_folder+"File2.tif")
-		elif Data2 == 'CCS':
+		elif (Data2 == 'CCS' and os.path.splitext(FilePath2)[1] != '.vrt'):
 			try:
 				os.system("cp "+DestFile2+" "+temp_folder+"File3.tif")
 			except:
@@ -699,12 +699,12 @@ else:
 	RasterCal(temp_folder+"File1.tif", temp_folder+"File2.tif", temp_folder+"Diff1.tif", temp_folder0)
 	if domain != 'wholemap':
 		#print 'DestFile1 '+DestFile1
-		if Data1 == 'CCS':
+		if (Data1 == 'CCS' and os.path.splitext(FilePath1)[1] != '.vrt'):
 			try:
 				os.system("cp "+DestFile1+" "+temp_folder+"File1.tif")
 			except:
 				os.system("cp "+FilePath1+" "+temp_folder+"File1.tif")
-		elif Data2 == 'CCS':
+		elif (Data2 == 'CCS' and os.path.splitext(FilePath2)[1] != '.vrt'):
 			try:
 				os.system("cp "+DestFile2+" "+temp_folder+"File2.tif")
 			except:
